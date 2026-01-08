@@ -38,7 +38,7 @@ const MealChoiceOptionModel = require('./MealChoiceOption');
 const MealChoiceGroupMappingModel = require('./MealChoiceGroupMapping');
 
 const MealIncludeModel = require('./MealInclude');
-
+// const ProductToppingModel = require('./ProductTopping');
 
 
 const db = {};
@@ -51,6 +51,7 @@ db.Product = ProductModel(sequelize);
 db.ProductPrice = ProductPriceModel(sequelize);
 db.Topping = ToppingModel(sequelize);
 db.ToppingPrice = ToppingPriceModel(sequelize);
+// db.ProductTopping = ProductToppingModel(sequelize);
 db.CategoryTopping = CategoryToppingModel(sequelize);
 db.AddonGroup = AddonGroupModel(sequelize);
 db.Addon = AddonModel(sequelize);

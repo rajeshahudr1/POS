@@ -10,6 +10,9 @@ module.exports = (sequelize) => {
             Product.hasMany(models.ProductPrice, {
                 foreignKey: 'product_id'
             });
+
+
+
         }
     }
 

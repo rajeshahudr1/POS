@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const controller = require('../controllers/catalog.names.controller');
+const apiTokenAuth = require('../middlewares/apiToken.middleware');
 
-router.get('/catalog/names', controller.getCatalogByNames);
+router.get('/catalog', apiTokenAuth, controller.getCatalogByNames);
 
 module.exports = router;

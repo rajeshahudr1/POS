@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Catalog Access</title>
+    <style>
+        body { font-family: Arial; background: #f4f4f4; }
+        .box {
+            width: 300px;
+            margin: 120px auto;
+            padding: 20px;
+            background: #fff;
+            border-radius: 6px;
+            box-shadow: 0 0 10px rgba(0,0,0,.1);
+        }
+        input, button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+        }
+        pre {
+            background: #111;
+            color: #0f0;
+            padding: 10px;
+            overflow: auto;
+            max-height: 400px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="box">
+    <h3>Enter API Token</h3>
+    <input type="password" id="token" placeholder="API Token" />
+    <button onclick="loadCatalog()">Submit</button>
+    <pre id="output"></pre>
+</div>
+
+<script>
+    async function loadCatalog() {
+        const token = document.getElementById('token').value;
+
+        const res = await fetch('/api/catalog/data', {
+            headers: {
+                'x-api-token': token
+            }
+        });
+
+        const out = document.getElementById('output');
+
+        if (!res.ok) {
+            out.textContent = 'Invalid Token';
+            return;
+        }
+
+        const data = await res.json();
+        out.textContent = JSON.stringify(data, null, 2);
+    }
+</script>
+
+</body>
+</html>

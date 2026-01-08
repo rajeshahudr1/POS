@@ -165,11 +165,13 @@ exports.getCatalogByNames = async (req, res) => {
                     }
                 });
 
+
                 return {
                     product_name: p.product_name,
                     description: p.description,
                     is_half_and_half: p.is_half_and_half,
                     included_toppings: p.included_toppings,
+                    // available_toppings: finalToppings,
                     prices: priceMap
                 };
             });
