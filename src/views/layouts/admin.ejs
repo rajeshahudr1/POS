@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Ramzan POS Admin</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <!-- Bootstrap -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Axios -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+
+
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <link rel="stylesheet" href="/css/loader.css">
+
+
+    <!-- Page Specific JS -->
+    <%- typeof scripts !== 'undefined' ? scripts : '' %>
+
+    <style>
+        body { background:#f4f6f9; }
+        .sidebar {
+            width: 240px;
+            min-height: 100vh;
+            background: #212529;
+        }
+        .sidebar a {
+            color: #adb5bd;
+            text-decoration: none;
+            display: block;
+            padding: 10px 15px;
+        }
+        .sidebar a:hover, .sidebar a.active {
+            background: #343a40;
+            color: #fff;
+        }
+        .content {
+            padding: 20px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Global Loader -->
+<div id="globalLoader" class="loader-overlay d-none">
+    <div class="spinner-border text-primary" role="status"></div>
+</div>
+
+
+<div class="d-flex">
+    <%- include('../partials/sidebar') %>
+
+    <div class="flex-grow-1">
+        <%- include('../partials/navbar') %>
+
+        <div class="content">
+            <%- body %>
+        </div>
+    </div>
+</div>
+
+
+<script src="/js/alert.js"></script>
+<script src="/js/loader.js"></script>
+</body>
+</html>

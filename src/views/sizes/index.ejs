@@ -1,0 +1,71 @@
+<div id="alertBox"></div>
+
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4>Size Master</h4>
+    <button class="btn btn-primary" onclick="openAddModal()">➕ Add New</button>
+</div>
+
+
+<div class="row mb-3">
+    <div class="col-md-4">
+        <input type="text" id="search" class="form-control" placeholder="Search size">
+    </div>
+    <div class="col-md-4">
+        <a href="/api/sizes/export" class="btn btn-success">⬇ Export Excel</a>
+
+        <input type="file" id="importFile" hidden>
+        <button class="btn btn-secondary" onclick="triggerImport()">⬆ Import Excel</button>
+    </div>
+</div>
+
+<table class="table table-bordered bg-white">
+    <thead>
+    <tr>
+        <th>ID</th>
+        <th>Name</th>
+        <th>Code</th>
+        <th width="150">Action</th>
+    </tr>
+    </thead>
+    <tbody id="sizeTable"></tbody>
+</table>
+
+<nav>
+    <ul class="pagination" id="pagination"></ul>
+</nav>
+
+<!-- MODAL -->
+<div class="modal fade" id="sizeModal">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 id="modalTitle">Add Size</h5>
+                <button class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+
+            <div class="modal-body">
+                <input type="hidden" id="size_id">
+
+                <div class="mb-2">
+                    <label>Name</label>
+                    <input id="size_name" class="form-control" placeholder="e.g. Large">
+                </div>
+
+                <div class="mb-2">
+                    <label>Code</label>
+                    <input id="size_code" class="form-control" placeholder="e.g. LG">
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-success" onclick="saveSize()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<% scripts = '<script src="/js/size.js"></script>' %>
+<% scripts += '<script src="/js/size-import.js"></script>' %>
+
