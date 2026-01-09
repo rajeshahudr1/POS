@@ -28,6 +28,7 @@ app.use(express.static(path.join(__dirname, '../public')));
 
 
 
+
 /* API */
 app.use('/api', apiRoutes);
 
@@ -38,6 +39,8 @@ app.use('/admin', dashboardRoutes);
 app.use('/api', require('../routes/size.import.routes'));
 
 app.use('/api', require('../routes/catalog.names.routes'));
+
+app.use('/admin', require('../routes/visitingCard.web.routes'));
 
 
 

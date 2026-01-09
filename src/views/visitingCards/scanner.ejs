@@ -1,0 +1,150 @@
+<!-- views/visitingCards/scanner.ejs -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title><%= title %></title>
+    <link rel="stylesheet" href="/css/visitingCard.css">
+</head>
+<body>
+<div class="mobile-container">
+    <!-- Header -->
+    <div class="header">
+        <button class="back-btn" onclick="window.location.href='/admin/visiting-cards/list'">
+            ← Back
+        </button>
+        <h1>📇 Card Scanner</h1>
+    </div>
+
+    <!-- Success Message -->
+    <div class="success-message" id="successMessage">
+        ✓ Card saved successfully!
+    </div>
+
+    <!-- Upload Section -->
+    <div class="upload-section">
+        <!-- Front Image Upload -->
+        <div class="upload-box" id="frontUploadBox">
+            <div class="upload-icon">📸</div>
+            <h3>Front Side</h3>
+            <p>Tap to upload or capture</p>
+            <input type="file" id="frontImageInput" class="file-input" accept="image/*" capture="environment">
+        </div>
+
+        <!-- Front Image Preview -->
+        <div class="preview-box" id="frontPreview" style="display: none;">
+            <div class="preview-label">Front Side</div>
+            <img id="frontPreviewImg" alt="Front preview">
+            <button class="remove-btn" onclick="removeFrontImage()">×</button>
+        </div>
+
+        <!-- Rear Image Upload -->
+        <div class="upload-box" id="rearUploadBox">
+            <div class="upload-icon">📄</div>
+            <h3>Back Side (Optional)</h3>
+            <p>Tap to upload or capture</p>
+            <input type="file" id="rearImageInput" class="file-input" accept="image/*" capture="environment">
+        </div>
+
+        <!-- Rear Image Preview -->
+        <div class="preview-box" id="rearPreview" style="display: none;">
+            <div class="preview-label">Back Side</div>
+            <img id="rearPreviewImg" alt="Back preview">
+            <button class="remove-btn" onclick="removeRearImage()">×</button>
+        </div>
+
+        <!-- Camera Button -->
+        <button class="btn btn-camera" id="cameraBtn" onclick="openCamera()">
+            📷 Open Camera
+        </button>
+
+        <!-- Action Buttons -->
+        <div class="action-buttons" id="actionButtons" style="display: none;">
+            <button class="btn btn-primary" onclick="processCard()">
+                🔍 Process Card
+            </button>
+            <button class="btn btn-secondary" onclick="resetForm()">
+                🔄 Reset
+            </button>
+        </div>
+
+        <!-- Loader -->
+        <div class="loader" id="loader">
+            <div class="spinner"></div>
+            <p>Processing card...</p>
+            <small>Extracting text from images</small>
+        </div>
+    </div>
+</div>
+
+<!-- Camera Modal -->
+<div class="modal" id="cameraModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>📷 Capture Card</h2>
+            <button class="modal-close" onclick="closeCamera()">×</button>
+        </div>
+        <div class="modal-body">
+            <div class="camera-container">
+                <video id="cameraVideo" autoplay playsinline></video>
+                <div class="camera-overlay"></div>
+                <canvas id="cameraCanvas" style="display: none;"></canvas>
+            </div>
+            <div class="camera-controls">
+                <button class="btn btn-primary" onclick="capturePhoto('front')">
+                    Capture Front
+                </button>
+                <button class="btn btn-secondary" onclick="capturePhoto('rear')">
+                    Capture Back
+                </button>
+            </div>
+            <p class="camera-hint">Position the card within the frame</p>
+        </div>
+    </div>
+</div>
+
+<!-- View Modal -->
+<div class="modal" id="viewModal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2>👁️ Extracted Text</h2>
+            <button class="modal-close" onclick="closeViewModal()">×</button>
+        </div>
+        <div class="modal-body" id="viewModalBody">
+            <div class="extracted-text-section">
+                <h3>Front Side Text:</h3>
+                <div class="text-box" id="frontTextBox"></div>
+            </div>
+            <div class="extracted-text-section">
+                <h3>Back Side Text:</h3>
+                <div class="text-box" id="rearTextBox"></div>
+            </div>
+            <div class="extracted-text-section">
+                <h3>Auto-Mapped Fields:</h3>
+                <div class="mapped-fields" id="mappedFieldsBox"></div>
+            </div>
+            <button class="btn btn-primary" onclick="closeViewModal(); openMappingModal()">
+                Continue to Mapping
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Mapping Modal -->
+<div class="modal" id="mappingModal">
+    <div class="modal-content mapping-modal">
+        <div class="modal-header">
+            <h2>🗂️ Map Fields</h2>
+            <button class="modal-close" onclick="closeMappingModal()">×</button>
+        </div>
+        <div class="modal-body" id="mappingModalBody">
+            <!-- Dynamic content will be loaded here -->
+        </div>
+    </div>
+</div>
+
+<script src="/js/visitingCard.js"></script>
+</body>
+</html>
