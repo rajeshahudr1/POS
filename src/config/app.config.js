@@ -1,4 +1,4 @@
 module.exports = {
-    PASSWORD: '@!23SS3434FSDT6!',
-    USER_NAME : 'ramzans'
+    Auth: 'fjhdsfjhdsjhhfhdshfjdshf56554sdfdssfdsf',
+    OCR_PROVIDER:"local"  //# Options: 'aws' or 'local'
 };

@@ -1,0 +1,188 @@
+<!-- views/visitingCards/cardDetail.ejs -->
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title %></title>
+    <link rel="stylesheet" href="/css/cardDetail.css">
+</head>
+<body>
+<div class="mobile-container">
+    <div class="header">
+        <button class="back-btn" onclick="window.history.back()">
+            ← Back
+        </button>
+        <h1>Card Details</h1>
+        <button class="edit-btn" onclick="editCard(<%= card.id %>)">
+            ✏️
+        </button>
+    </div>
+
+    <!-- Original Card Images -->
+    <div class="original-images">
+        <h3>Original Card</h3>
+        <div class="images-grid">
+            <% if (card.front_image_path) { %>
+                <div class="image-box">
+                    <img src="<%= card.front_image_path %>" alt="Front">
+                    <span class="image-label">Front</span>
+                </div>
+            <% } %>
+            <% if (card.rear_image_path) { %>
+                <div class="image-box">
+                    <img src="<%= card.rear_image_path %>" alt="Rear">
+                    <span class="image-label">Rear</span>
+                </div>
+            <% } %>
+        </div>
+    </div>
+
+    <!-- Digital Visiting Card -->
+    <div class="digital-card-section">
+        <h3>Digital Card</h3>
+
+        <div class="visiting-card">
+            <!-- Company/Brand Section -->
+            <% if (card.company_name || card.logo_text) { %>
+                <div class="card-header">
+                    <% if (card.logo_text) { %>
+                        <div class="logo-area">
+                            <span class="logo-text"><%= card.logo_text %></span>
+                        </div>
+                    <% } %>
+                    <% if (card.company_name) { %>
+                        <h2 class="company-name"><%= card.company_name %></h2>
+                    <% } %>
+                    <% if (card.tagline) { %>
+                        <p class="tagline"><%= card.tagline %></p>
+                    <% } %>
+                </div>
+            <% } %>
+
+            <!-- Person Details -->
+            <div class="person-details">
+                <% if (card.full_name) { %>
+                    <h3 class="person-name"><%= card.full_name %></h3>
+                <% } %>
+                <% if (card.designation) { %>
+                    <p class="designation"><%= card.designation %></p>
+                <% } %>
+            </div>
+
+            <!-- Contact Information -->
+            <div class="contact-section">
+                <% if (card.primary_phone) { %>
+                    <div class="contact-item">
+                        <span class="icon">📞</span>
+                        <a href="tel:<%= card.primary_phone %>"><%= card.primary_phone %></a>
+                    </div>
+                <% } %>
+                <% if (card.secondary_phone) { %>
+                    <div class="contact-item">
+                        <span class="icon">☎️</span>
+                        <a href="tel:<%= card.secondary_phone %>"><%= card.secondary_phone %></a>
+                    </div>
+                <% } %>
+                <% if (card.primary_email) { %>
+                    <div class="contact-item">
+                        <span class="icon">📧</span>
+                        <a href="mailto:<%= card.primary_email %>"><%= card.primary_email %></a>
+                    </div>
+                <% } %>
+                <% if (card.website) { %>
+                    <div class="contact-item">
+                        <span class="icon">🌐</span>
+                        <a href="<%= card.website.startsWith('http') ? card.website : 'https://' + card.website %>" target="_blank"><%= card.website %></a>
+                    </div>
+                <% } %>
+                <% if (card.company_address) { %>
+                    <div class="contact-item address">
+                        <span class="icon">📍</span>
+                        <span><%= card.company_address %></span>
+                    </div>
+                <% } %>
+            </div>
+
+            <!-- Services Section -->
+            <% if (card.services && card.services.length > 0) { %>
+                <div class="services-section">
+                    <h4>Our Services</h4>
+                    <ul class="services-list">
+                        <%
+                            const services = typeof card.services === 'string' ? JSON.parse(card.services) : card.services;
+                        services.forEach(service => { %>
+                            <li><%= service %></li>
+                        <% }); %>
+                    </ul>
+                </div>
+            <% } %>
+
+            <!-- Social Media -->
+            <% if (card.linkedin_url || card.facebook_url || card.twitter_url || card.instagram_url) { %>
+                <div class="social-section">
+                    <% if (card.linkedin_url) { %>
+                        <a href="<%= card.linkedin_url %>" target="_blank" class="social-icon linkedin">in</a>
+                    <% } %>
+                    <% if (card.facebook_url) { %>
+                        <a href="<%= card.facebook_url %>" target="_blank" class="social-icon facebook">f</a>
+                    <% } %>
+                    <% if (card.twitter_url) { %>
+                        <a href="<%= card.twitter_url %>" target="_blank" class="social-icon twitter">𝕏</a>
+                    <% } %>
+                    <% if (card.instagram_url) { %>
+                        <a href="<%= card.instagram_url %>" target="_blank" class="social-icon instagram">📷</a>
+                    <% } %>
+                </div>
+            <% } %>
+
+            <!-- Barcode -->
+            <% if (card.barcode_data) { %>
+                <div class="barcode-section">
+                    <div class="barcode-placeholder">
+                        <span>🔲</span>
+                        <small><%= card.barcode_data %></small>
+                    </div>
+                </div>
+            <% } %>
+        </div>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="action-buttons-fixed">
+        <button class="btn btn-secondary" onclick="shareCard(<%= card.id %>)">
+            📤 Share
+        </button>
+        <button class="btn btn-primary" onclick="downloadVCard(<%= card.id %>)">
+            💾 Save Contact
+        </button>
+    </div>
+</div>
+
+<script>
+    function editCard(id) {
+        // Navigate to edit page
+        window.location.href = `/admin/visiting-cards/edit/${id}`;
+    }
+
+    function shareCard(id) {
+        if (navigator.share) {
+            navigator.share({
+                title: '<%= card.full_name || "Visiting Card" %>',
+                text: 'Check out this contact: <%= card.full_name %>',
+                url: window.location.href
+            }).catch(err => console.log('Error sharing:', err));
+        } else {
+            // Fallback - copy link
+            navigator.clipboard.writeText(window.location.href);
+            alert('Link copied to clipboard!');
+        }
+    }
+
+    function downloadVCard(id) {
+        window.location.href = `/api/visiting-cards/${id}/vcard`;
+    }
+</script>
+</body>
+</html>

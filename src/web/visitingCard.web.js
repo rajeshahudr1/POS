@@ -8,7 +8,8 @@ exports.scannerPage = async (req, res) => {
     try {
         res.render('visitingCards/scanner', {
             title: 'Visiting Card Scanner',
-            page: 'visiting-card-scanner'
+            page: 'visiting-card-scanner',
+            layout: false
         });
     } catch (err) {
         res.send(err.message);
@@ -28,7 +29,8 @@ exports.listPage = async (req, res) => {
             page: 'visiting-card-list',
             cards: response.data.data.data,
             pagination: response.data.data.pagination,
-            search
+            search,
+            layout: false
         });
     } catch (err) {
         res.send(err.message);

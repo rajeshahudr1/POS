@@ -187,8 +187,24 @@ async function processCard() {
         return;
     }
 
+    // Get selected OCR provider
+    const selectedProvider = document.querySelector('input[name="ocrProvider"]:checked');
+    if (!selectedProvider) {
+        alert('Please select an OCR provider');
+        return;
+    }
+
+    const ocrProvider = selectedProvider.value;
+    console.log('Selected OCR Provider:', ocrProvider);
+
     const loader = document.getElementById('loader');
     const actionButtons = document.getElementById('actionButtons');
+
+    // Update loader text to show which provider is being used
+    const loaderText = loader.querySelector('p');
+    if (loaderText) {
+        loaderText.textContent = `Processing with ${ocrProvider === 'aws' ? 'AWS Textract' : 'Tesseract'}...`;
+    }
 
     loader.classList.add('show');
     actionButtons.style.display = 'none';
@@ -199,6 +215,10 @@ async function processCard() {
         if (rearImageFile) {
             formData.append('rearImage', rearImageFile);
         }
+        // Add OCR provider to form data
+        formData.append('ocrProvider', ocrProvider);
+
+        console.log('Uploading images with OCR provider:', ocrProvider);
 
         const response = await fetch('/api/visiting-cards/upload', {
             method: 'POST',
@@ -207,8 +227,16 @@ async function processCard() {
 
         const result = await response.json();
 
+        console.log('Response received:', result);
+
         if (result.success) {
             processedData = result.data;
+            console.log('Processed with provider:', processedData.ocrProvider);
+
+            // Show which provider was used in success message
+            showSuccessNotification(`✅ Text extracted using ${processedData.ocrProvider.toUpperCase()}`);
+
+            // Show view modal
             showViewModal();
         } else {
             alert('Error: ' + result.message);
@@ -229,30 +257,42 @@ function showViewModal() {
     const rearTextBox = document.getElementById('rearTextBox');
     const mappedFieldsBox = document.getElementById('mappedFieldsBox');
 
+    console.log('Showing view modal with data:', processedData);
+
     frontTextBox.textContent = processedData.frontOcrText || 'No text extracted';
     rearTextBox.textContent = processedData.rearOcrText || 'No text extracted';
 
-    // Show confidence if available
+    // Show confidence and provider
     if (processedData.frontConfidence) {
         const confidence = processedData.frontConfidence.toFixed(1);
         const color = confidence > 90 ? '#10b981' : confidence > 70 ? '#f59e0b' : '#ef4444';
-        frontTextBox.parentElement.querySelector('h3').innerHTML =
-            `Front Side Text: <span style="background: ${color}; color: white; padding: 2px 8px; border-radius: 5px; font-size: 12px; margin-left: 5px;">${confidence}%</span>`;
+        const provider = processedData.ocrProvider || 'unknown';
+        const providerIcon = provider === 'aws' ? '☁️' : '💻';
+        const heading = frontTextBox.parentElement.querySelector('h3');
+        if (heading) {
+            heading.innerHTML = `
+                Front Side Text: 
+                <span style="background: ${color}; color: white; padding: 2px 8px; border-radius: 5px; font-size: 12px; margin-left: 5px;">${confidence}%</span>
+                <span style="background: #667eea; color: white; padding: 2px 8px; border-radius: 5px; font-size: 12px; margin-left: 5px;">${providerIcon} ${provider.toUpperCase()}</span>
+            `;
+        }
     }
 
-    // Show mapped fields
+    // Rest of the function remains the same...
     let mappedHTML = '';
-    if (Object.keys(processedData.mappedData).length > 0) {
+    const mappedCount = processedData.mappedData ? Object.keys(processedData.mappedData).length : 0;
+
+    if (mappedCount > 0) {
         for (const [key, value] of Object.entries(processedData.mappedData)) {
             mappedHTML += `
                 <div class="mapped-field-item">
                     <span class="field-label">${formatFieldName(key)}:</span>
-                    <span class="field-value">${value}</span>
+                    <span class="field-value">${escapeHtml(value)}</span>
                 </div>
             `;
         }
     } else {
-        mappedHTML = '<p style="color: #666;">No fields auto-mapped</p>';
+        mappedHTML = '<p style="color: #666; padding: 20px; text-align: center;">No fields auto-mapped. You can map them manually.</p>';
     }
 
     mappedFieldsBox.innerHTML = mappedHTML;
@@ -515,6 +555,7 @@ function formatFieldName(name) {
         .join(' ');
 }
 
+
 function escapeHtml(text) {
     if (!text) return '';
     const div = document.createElement('div');
@@ -527,4 +568,21 @@ function unescapeHtml(html) {
     const txt = document.createElement('textarea');
     txt.innerHTML = html;
     return txt.value;
+}
+
+// Add success notification function
+function showSuccessNotification(message) {
+    const notification = document.createElement('div');
+    notification.className = 'toast-notification';
+    notification.textContent = message;
+    document.body.appendChild(notification);
+
+    setTimeout(() => {
+        notification.classList.add('show');
+    }, 100);
+
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 300);
+    }, 3000);
 }

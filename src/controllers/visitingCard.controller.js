@@ -105,68 +105,87 @@ const upload = multer({
 exports.uploadCard = (req, res, next) => {
     upload(req, res, async (err) => {
         if (err) {
-            console.error('Multer Error:', err);
+            console.error('\n❌ MULTER ERROR:', err);
+            console.error('Error message:', err.message);
             return response.error(res, err.message, 400);
         }
 
         try {
+            console.log('\n===== UPLOAD SUCCESS =====');
+
             const frontImage = req.files['frontImage'] ? req.files['frontImage'][0] : null;
             const rearImage = req.files['rearImage'] ? req.files['rearImage'][0] : null;
 
+            // Get OCR provider from request body (sent from frontend)
+            const ocrProvider = req.body.ocrProvider || process.env.OCR_PROVIDER || 'local';
+            console.log('📌 Selected OCR Provider:', ocrProvider.toUpperCase());
+
             if (!frontImage) {
+                console.error('❌ No front image in request');
                 return response.error(res, 'Front image is required', 400);
             }
 
-            console.log('Front image saved at:', frontImage.path);
-            if (rearImage) {
-                console.log('Rear image saved at:', rearImage.path);
-            }
+            console.log('\n----- Front Image Details -----');
+            console.log('Path:', frontImage.path);
+            console.log('Size:', frontImage.size, 'bytes');
 
-            // Verify file exists
-            if (!fs.existsSync(frontImage.path)) {
-                console.error('Front image file not found at:', frontImage.path);
+            const frontExists = fs.existsSync(frontImage.path);
+            console.log('Front image exists on disk:', frontExists);
+
+            if (!frontExists) {
+                console.error('❌ CRITICAL: Front image file not found');
                 return response.error(res, 'Failed to save front image', 500);
             }
 
-            console.log('Processing front image with AWS Textract...');
+            console.log('\n===== STARTING OCR PROCESSING =====');
+            console.log(`Processing with ${ocrProvider.toUpperCase()}...`);
 
-            // Extract text from front image
-            const frontResult = await ocrService.extractTextFromImage(frontImage.path);
+            // Extract text from front image with selected provider
+            const frontResult = await ocrService.extractTextFromImage(frontImage.path, ocrProvider);
             const frontOcrText = frontResult.fullText || '';
             const frontConfidence = frontResult.confidence || 0;
 
-            console.log(`Front image processed. Confidence: ${frontConfidence.toFixed(2)}%`);
-            console.log('Extracted text length:', frontOcrText.length);
+            console.log(`\n✅ Front image processed`);
+            console.log('Provider used:', frontResult.provider || ocrProvider);
+            console.log('Confidence:', frontConfidence.toFixed(2) + '%');
+            console.log('Extracted text length:', frontOcrText.length, 'characters');
 
             // Extract text from rear image if exists
             let rearOcrText = '';
             let rearConfidence = 0;
 
             if (rearImage && fs.existsSync(rearImage.path)) {
-                console.log('Processing rear image with AWS Textract...');
-                const rearResult = await ocrService.extractTextFromImage(rearImage.path);
+                console.log('\nProcessing rear image...');
+                const rearResult = await ocrService.extractTextFromImage(rearImage.path, ocrProvider);
                 rearOcrText = rearResult.fullText || '';
                 rearConfidence = rearResult.confidence || 0;
-                console.log(`Rear image processed. Confidence: ${rearConfidence.toFixed(2)}%`);
+
+                console.log(`✅ Rear image processed`);
+                console.log('Confidence:', rearConfidence.toFixed(2) + '%');
             }
 
             // Combine OCR text
             const combinedText = frontOcrText + '\n' + rearOcrText;
 
             // Auto-map fields
-            console.log('Auto-mapping fields...');
+            console.log('\n===== AUTO-MAPPING FIELDS =====');
             const { mappedData, unmappedText } = await ocrService.autoMapFields(combinedText);
-            console.log('Mapped fields:', Object.keys(mappedData).length);
-            console.log('Unmapped lines:', unmappedText.length);
+
+            console.log('Mapped fields count:', Object.keys(mappedData).length);
+            console.log('Unmapped lines count:', unmappedText.length);
 
             // Create proper URL paths for frontend
             const frontImageUrl = '/uploads/visiting_cards/' + path.basename(frontImage.path);
             const rearImageUrl = rearImage ? '/uploads/visiting_cards/' + path.basename(rearImage.path) : null;
 
+            console.log('\n===== SENDING RESPONSE =====');
+            console.log('OCR Provider used:', ocrProvider);
+            console.log('========================================\n');
+
             response.success(res, {
                 frontImagePath: frontImageUrl,
                 rearImagePath: rearImageUrl,
-                frontImageFullPath: frontImage.path, // For backend reference
+                frontImageFullPath: frontImage.path,
                 rearImageFullPath: rearImage ? rearImage.path : null,
                 frontOcrText: frontOcrText,
                 rearOcrText: rearOcrText,
@@ -174,11 +193,13 @@ exports.uploadCard = (req, res, next) => {
                 rearConfidence: rearConfidence,
                 mappedData: mappedData,
                 unmappedText: unmappedText,
+                ocrProvider: ocrProvider, // Include which provider was used
                 tempId: Date.now()
             }, 'Card processed successfully');
 
         } catch (error) {
-            console.error('Upload Card Error:', error);
+            console.error('\n❌ PROCESSING ERROR:', error);
+            console.error('Error message:', error.message);
             return response.error(res, error.message || 'Failed to process card', 500);
         }
     });
@@ -315,6 +336,17 @@ exports.initializeFieldMappings = async (req, res, next) => {
         response.success(res, null, 'Field mappings initialized successfully');
     } catch (err) {
         next(err);
+    }
+};
+
+
+// Add new endpoint to get OCR provider info
+exports.getOcrProviderInfo = async (req, res) => {
+    try {
+        const info = ocrService.getOcrProviderInfo();
+        response.success(res, info, 'OCR provider information');
+    } catch (err) {
+        response.error(res, 'Failed to get OCR info', 500);
     }
 };
 

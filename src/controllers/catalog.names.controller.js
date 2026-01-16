@@ -1,7 +1,20 @@
 const db = require('../model');
+const config = require('../config/app.config');
+
 
 exports.getCatalogByNames = async (req, res) => {
     try {
+
+        const authHeader = req.headers.authorization;
+        if(req.headers.auth!==config.Auth){
+            return res.status(500).json({
+                success: false,
+                message: 'Invalid token'
+            });
+
+        }
+
+
         /* ================== CATEGORIES ================== */
         const categories = await db.Category.findAll({
             attributes: [

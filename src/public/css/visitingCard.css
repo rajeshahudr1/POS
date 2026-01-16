@@ -848,3 +848,121 @@ body {
 .unmapped-section h3 {
     transition: all 0.3s ease;
 }
+
+/* Add to public/css/visitingCard.css */
+
+/* OCR Selection Box */
+.ocr-selection-box {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 20px;
+    border-radius: 15px;
+    margin-bottom: 20px;
+    color: white;
+}
+
+.ocr-selection-box h3 {
+    font-size: 18px;
+    margin-bottom: 5px;
+    color: white;
+}
+
+.ocr-description {
+    font-size: 13px;
+    opacity: 0.9;
+    margin-bottom: 15px;
+}
+
+.ocr-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.ocr-option {
+    position: relative;
+    cursor: pointer;
+    display: block;
+}
+
+.ocr-option input[type="radio"] {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.option-content {
+    background: white;
+    padding: 15px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    transition: all 0.3s ease;
+    border: 3px solid transparent;
+}
+
+.ocr-option input[type="radio"]:checked + .option-content {
+    border-color: #ffc107;
+    box-shadow: 0 4px 12px rgba(255, 193, 7, 0.4);
+    transform: scale(1.02);
+}
+
+.option-icon {
+    font-size: 32px;
+    line-height: 1;
+}
+
+.option-details {
+    flex: 1;
+}
+
+.option-details strong {
+    display: block;
+    color: #333;
+    font-size: 14px;
+    margin-bottom: 3px;
+}
+
+.option-details small {
+    display: block;
+    color: #666;
+    font-size: 11px;
+}
+
+/* Toast Notification */
+.toast-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #10b981;
+    color: white;
+    padding: 15px 20px;
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    z-index: 10000;
+    opacity: 0;
+    transform: translateY(-20px);
+    transition: all 0.3s ease;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.toast-notification.show {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Responsive OCR Options */
+@media (max-width: 480px) {
+    .ocr-options {
+        grid-template-columns: 1fr;
+    }
+
+    .option-content {
+        padding: 12px;
+    }
+
+    .option-icon {
+        font-size: 28px;
+    }
+}

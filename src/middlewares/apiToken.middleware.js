@@ -12,8 +12,7 @@ module.exports = function basicAuth(req, res, next) {
     const credentials = Buffer.from(base64Credentials, 'base64').toString('ascii');
     const [username, password] = credentials.split(':');
 
-    console.log("username",username);
-    console.log("password",password);
+
     // 👉 username ignored, password = token
     if (password !== config.PASSWORD && username==config.USER_NAME) {
         res.setHeader('WWW-Authenticate', 'Basic realm="Catalog API"');
