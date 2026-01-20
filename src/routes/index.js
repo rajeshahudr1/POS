@@ -2,11 +2,13 @@ const router = require('express').Router();
 
 
 // api route
-router.use('/sizes', require('./size.routes'));
+router.use('/companies', require('./company.routes'));
+router.use('/branches', require('./branch.routes'));
+// router.use('/sizes', require('./size.routes'));
 
 
 // Add visiting card routes
-router.use('/visiting-cards', require('./visitingCard.routes'));
+// router.use('/visiting-cards', require('./visitingCard.routes'));
 
 
 

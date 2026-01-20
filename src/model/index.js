@@ -1,6 +1,8 @@
 const { Sequelize } = require('sequelize');
 const sequelize = require('../config/database');
 
+const CompanyModel = require('./Company');
+const BranchModel = require('./Branch');
 const SizeModel = require('./Size');
 const CategoryModel = require('./Category');
 const CategorySizeModel = require('./CategorySize');
@@ -44,6 +46,8 @@ const MealIncludeModel = require('./MealInclude');
 const db = {};
 db.sequelize = sequelize;
 
+db.Company = CompanyModel(sequelize);
+db.Branch = BranchModel(sequelize);
 db.Size = SizeModel(sequelize);
 db.Category = CategoryModel(sequelize);
 db.CategorySize = CategorySizeModel(sequelize);
@@ -126,6 +130,8 @@ db.AddonGroup.hasMany(db.Addon, {
 db.Addon.belongsTo(db.AddonGroup, {
     foreignKey: 'addon_group_id'
 });
+
+/* Note: Company ↔ Branch associations are defined in Company.js and Branch.js models */
 
 /* other associations stay same */
 

@@ -7,8 +7,10 @@ const expressLayouts = require('express-ejs-layouts');
 
 const apiRoutes  = require('../routes');
 const adminRoutes = require('../routes/size.web.routes');
+const companyWebRoutes = require('../routes/company.web.routes');
 const dashboardRoutes = require('../routes/admin.routes');
 const errorHandler = require('../middlewares/error.middleware');
+const branchWebRoutes = require('../routes/branch.web.routes');
 
 const app = express();
 
@@ -34,8 +36,9 @@ app.use('/api', apiRoutes);
 
 /* ADMIN UI (mounted ONCE here) */
 app.use('/admin', adminRoutes);
+app.use('/admin', companyWebRoutes);
 app.use('/admin', dashboardRoutes);
-
+app.use('/admin', branchWebRoutes);
 app.use('/api', require('../routes/size.import.routes'));
 
 app.use('/api', require('../routes/catalog.names.routes'));
