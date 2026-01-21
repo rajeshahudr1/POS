@@ -1,0 +1,203 @@
+<div id="alertBox"></div>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h4>📥 Import Menu Data</h4>
+</div>
+
+<!-- Import Form -->
+<div class="card mb-4">
+    <div class="card-header">
+        <strong>Upload Excel File</strong>
+    </div>
+    <div class="card-body">
+        <form id="importForm" enctype="multipart/form-data">
+            <div class="row">
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Company <span class="text-danger">*</span></label>
+                    <select id="company_id" class="form-select" required>
+                        <option value="">Select Company</option>
+                        <% if (typeof companies !== 'undefined') { %>
+                            <% companies.forEach(c => { %>
+                                <option value="<%= c.company_id %>"><%= c.company_name %></option>
+                            <% }); %>
+                        <% } %>
+                    </select>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Branch <span class="text-danger">*</span></label>
+                    <select id="branch_id" class="form-select" required disabled>
+                        <option value="">Select Branch</option>
+                    </select>
+                </div>
+                <div class="col-md-4 mb-3">
+                    <label class="form-label">Excel File <span class="text-danger">*</span></label>
+                    <input type="file" id="file" class="form-control" accept=".xlsx,.xls" required>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-12">
+                    <button type="submit" class="btn btn-primary" id="importBtn">
+                        <span class="spinner-border spinner-border-sm d-none" id="importSpinner"></span>
+                        📤 Import Data
+                    </button>
+                    <a href="/public/templates/menu_template.xlsx" class="btn btn-outline-secondary ms-2">
+                        📄 Download Template
+                    </a>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Import Results (shown after import) -->
+<div class="card mb-4 d-none" id="resultsCard">
+    <div class="card-header d-flex justify-content-between">
+        <strong>Import Results</strong>
+        <span id="resultsBadge"></span>
+    </div>
+    <div class="card-body">
+        <div class="row mb-3">
+            <div class="col-md-3">
+                <div class="card bg-light">
+                    <div class="card-body text-center">
+                        <h3 id="totalCount">0</h3>
+                        <small>Total Records</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-success text-white">
+                    <div class="card-body text-center">
+                        <h3 id="successCount">0</h3>
+                        <small>Successful</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-danger text-white">
+                    <div class="card-body text-center">
+                        <h3 id="failedCount">0</h3>
+                        <small>Failed</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card bg-info text-white">
+                    <div class="card-body text-center">
+                        <h3 id="sheetsCount">0</h3>
+                        <small>Sheets Processed</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs for Success/Failed -->
+        <ul class="nav nav-tabs" id="resultTabs">
+            <li class="nav-item">
+                <a class="nav-link active" data-bs-toggle="tab" href="#successTab">✅ Successful</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#failedTab">❌ Failed</a>
+            </li>
+            <li class="nav-item">
+                <a class="nav-link" data-bs-toggle="tab" href="#sheetsTab">📑 Sheets</a>
+            </li>
+        </ul>
+        <div class="tab-content border border-top-0 p-3">
+            <div class="tab-pane fade show active" id="successTab">
+                <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                    <table class="table table-sm table-striped mb-0">
+                        <thead><tr><th>Sheet</th><th>Row</th><th>Type</th><th>Name</th></tr></thead>
+                        <tbody id="successTable"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="failedTab">
+                <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                    <table class="table table-sm table-striped mb-0">
+                        <thead><tr><th>Sheet</th><th>Row</th><th>Type</th><th>Name</th><th>Error</th></tr></thead>
+                        <tbody id="failedTable"></tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="tab-pane fade" id="sheetsTab">
+                <div class="table-responsive">
+                    <table class="table table-sm table-striped mb-0">
+                        <thead><tr><th>Sheet Name</th><th>Total</th><th>Success</th><th>Failed</th></tr></thead>
+                        <tbody id="sheetsTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Import History -->
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <strong>📋 Import History</strong>
+        <button class="btn btn-sm btn-outline-primary" onclick="loadHistory()">🔄 Refresh</button>
+    </div>
+    <div class="card-body p-0">
+        <table class="table table-hover mb-0">
+            <thead class="table-light">
+            <tr>
+                <th>ID</th>
+                <th>Company</th>
+                <th>Branch</th>
+                <th>File</th>
+                <th>Records</th>
+                <th>Success</th>
+                <th>Failed</th>
+                <th>Status</th>
+                <th>Date</th>
+                <th>Actions</th>
+            </tr>
+            </thead>
+            <tbody id="historyTable"></tbody>
+        </table>
+    </div>
+</div>
+
+<nav class="mt-3">
+    <ul class="pagination" id="pagination"></ul>
+</nav>
+
+<!-- Details Modal -->
+<div class="modal fade" id="detailsModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Import Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <ul class="nav nav-pills mb-3">
+                    <li class="nav-item">
+                        <a class="nav-link active" onclick="loadDetails(null)">All</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" onclick="loadDetails('success')">Success</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" onclick="loadDetails('failed')">Failed</a>
+                    </li>
+                </ul>
+                <div class="table-responsive" style="max-height: 400px;">
+                    <table class="table table-sm table-striped">
+                        <thead><tr><th>Sheet</th><th>Row</th><th>Type</th><th>Name</th><th>Status</th><th>Error</th></tr></thead>
+                        <tbody id="detailsTable"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+    const API_URL = '/api/import';
+    let detailsModal;
+    let currentImportId = null;
+    let currentPage = 1;
+
+</script>
+<%- scripts = '<script src="/js/import.js"></script>' %>

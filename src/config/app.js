@@ -11,7 +11,7 @@ const companyWebRoutes = require('../routes/company.web.routes');
 const dashboardRoutes = require('../routes/admin.routes');
 const errorHandler = require('../middlewares/error.middleware');
 const branchWebRoutes = require('../routes/branch.web.routes');
-
+const importWebRoutes = require('../routes/import.web.routes');
 const app = express();
 
 /* middleware */
@@ -39,6 +39,7 @@ app.use('/admin', adminRoutes);
 app.use('/admin', companyWebRoutes);
 app.use('/admin', dashboardRoutes);
 app.use('/admin', branchWebRoutes);
+app.use('/admin', importWebRoutes);
 app.use('/api', require('../routes/size.import.routes'));
 
 app.use('/api', require('../routes/catalog.names.routes'));

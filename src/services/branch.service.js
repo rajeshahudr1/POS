@@ -173,6 +173,8 @@ exports.list = async ({ company_id = null, page = 1, limit = 10, search = '', is
             }
         );
 
+
+
         const [countResult] = await sequelize.query(
             'SELECT @p_total_count AS total',
             { type: QueryTypes.SELECT }
@@ -200,7 +202,7 @@ exports.list = async ({ company_id = null, page = 1, limit = 10, search = '', is
  */
 exports.getByCompany = async (companyId) => {
     try {
-        const [results] = await sequelize.query(
+        const results = await sequelize.query(
             `CALL SP_BRANCH_GET_BY_COMPANY(:company_id)`,
             {
                 replacements: { company_id: companyId },

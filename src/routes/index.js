@@ -4,6 +4,7 @@ const router = require('express').Router();
 // api route
 router.use('/companies', require('./company.routes'));
 router.use('/branches', require('./branch.routes'));
+router.use('/import', require('./import.routes'));
 // router.use('/sizes', require('./size.routes'));
 
 
