@@ -5,6 +5,7 @@ const config = require('../config/app.config');
 exports.getCatalogByNames = async (req, res) => {
     try {
 
+        console.log('req',req.body);
         const authHeader = req.headers.authorization;
         if(req.headers.auth!==config.Auth){
             return res.status(500).json({
@@ -13,6 +14,8 @@ exports.getCatalogByNames = async (req, res) => {
             });
 
         }
+
+
 
 
         /* ================== CATEGORIES ================== */

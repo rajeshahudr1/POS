@@ -5,7 +5,9 @@ const router = require('express').Router();
 router.use('/companies', require('./company.routes'));
 router.use('/branches', require('./branch.routes'));
 router.use('/import', require('./import.routes'));
-// router.use('/sizes', require('./size.routes'));
+//router.use('/sizes', require('./size.routes'));
+router.use('/catalog', require('./catalog.routes'));  // <-- ADD THIS LINE
+
 
 
 // Add visiting card routes
