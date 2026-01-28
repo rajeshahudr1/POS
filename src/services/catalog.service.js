@@ -124,7 +124,7 @@ class CatalogService {
                 JOIN categories cat ON cag.category_id = cat.category_id
                 JOIN branches b ON cat.branch_id = b.branch_id
                 JOIN addons a ON ag.addon_group_id = a.addon_group_id AND a.is_active = 1
-                LEFT JOIN category_addon_prices cap ON cag.category_addon_group_id = cap.category_addon_group_id 
+                JOIN category_addon_prices cap ON cag.category_addon_group_id = cap.category_addon_group_id 
                     AND cap.addon_id = a.addon_id AND cap.is_active = 1
                 LEFT JOIN sizes sz ON cap.size_id = sz.size_id
                 WHERE b.company_id = ? AND cag.is_active = 1 AND ag.is_active = 1
@@ -144,7 +144,7 @@ class CatalogService {
                 JOIN categories cat ON ccg.category_id = cat.category_id
                 JOIN branches b ON cat.branch_id = b.branch_id
                 JOIN choices c ON cg.choice_group_id = c.choice_group_id AND c.is_active = 1
-                LEFT JOIN category_choice_prices ccp ON ccg.category_choice_group_id = ccp.category_choice_group_id 
+                 JOIN category_choice_prices ccp ON ccg.category_choice_group_id = ccp.category_choice_group_id 
                     AND ccp.choice_id = c.choice_id AND ccp.is_active = 1
                 LEFT JOIN sizes sz ON ccp.size_id = sz.size_id
                 WHERE b.company_id = ? AND ccg.is_active = 1 AND cg.is_active = 1
