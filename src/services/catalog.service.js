@@ -31,7 +31,7 @@ class CatalogService {
             if (company) {
                 return { isValid: true, companyId: company.company_id, errorMessage: null };
             }
-            return { isValid: false, companyId: 0, errorMessage: 'Invalid authentication token or company code' };
+            return { isValid: false, companyId: 0, errorMessage: 'Invalid company code' };
         } catch (error) {
             console.error('Token validation error:', error);
             return { isValid: false, companyId: 0, errorMessage: 'Authentication failed' };
@@ -247,12 +247,12 @@ class CatalogService {
                 },
                 tax_percentage: parseFloat(companyInfo.tax_percentage) || 0
             },
-            sizes: sizes.map(s => ({
-                size_id: s.size_id,
-                size_name: s.size_name,
-                size_code: s.size_code,
-                display_order: s.display_order
-            })),
+            // sizes: sizes.map(s => ({
+            //     size_id: s.size_id,
+            //     size_name: s.size_name,
+            //     size_code: s.size_code,
+            //     display_order: s.display_order
+            // })),
             branches: []
         };
 
@@ -392,7 +392,6 @@ class CatalogService {
     groupByWithPrices(array, categoryKey, itemKey) {
         const result = {};
         const itemsMap = {};
-        console.log('array',array)
 
         for (const row of (array || [])) {
             const catId = row[categoryKey];
