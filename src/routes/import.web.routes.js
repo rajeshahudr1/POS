@@ -1,11 +1,11 @@
 const router = require('express').Router();
 const axios = require('axios');
-
-const API_BASE = process.env.API_URL || 'http://localhost:5000';
+const config = require('../config/app.config');
 
 router.get('/import', async (req, res) => {
     try {
-        const companiesRes = await axios.get(`${API_BASE}/api/companies/active`);
+
+        const companiesRes = await axios.get(`${config.BASE_URL}/api/companies/active`);
 
         res.render('import/index', {
             companies: companiesRes.data.data || [],

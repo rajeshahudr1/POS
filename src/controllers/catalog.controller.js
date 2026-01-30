@@ -105,7 +105,11 @@ exports.getCatalogByCategory = async (req, res) => {
         const catalog = await catalogService.getCompleteCatalog(uuid);
 
         let foundCategory = null;
-        for (const branch of catalog.branches) {
+        const category = catalog.categories.find(c => c.category_id == categoryId);
+        if (category) {
+            foundCategory = category;
+        }
+        /*for (const branch of catalog.branches) {
             const category = branch.categories.find(c => c.category_id == categoryId);
             if (category) {
                 foundCategory = {
@@ -118,7 +122,7 @@ exports.getCatalogByCategory = async (req, res) => {
                 };
                 break;
             }
-        }
+        }*/
 
         if (!foundCategory) {
             return apiResponse.error(res, 'Category not found', 404);

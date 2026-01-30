@@ -18,7 +18,7 @@ router.get('/:uuid', catalogController.getCatalog);
  * @desc    Get catalog for a specific branch
  * @access  Protected
  */
-router.get('/:uuid/branch/:branchCode', catalogController.getCatalogByBranch);
+// router.get('/:uuid/branch/:branchCode', catalogController.getCatalogByBranch);
 
 /**
  * @route   GET /api/catalog/:uuid/category/:categoryId

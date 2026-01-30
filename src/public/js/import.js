@@ -1,10 +1,9 @@
-
 document.addEventListener('DOMContentLoaded', () => {
     detailsModal = new bootstrap.Modal(document.getElementById('detailsModal'));
 
-    // Company change - load branches
-    document.getElementById('company_id').addEventListener('change', async (e) => {
+    const onCompanyChange = async (e) => {
         const companyId = e.target.value;
+
         const branchSelect = document.getElementById('branch_id');
         branchSelect.innerHTML = '<option value="">Select Branch</option>';
         branchSelect.disabled = true;
@@ -20,7 +19,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 apiError(err);
             }
         }
-    });
+    };
+
+    /*if (!window.companyChangeBound) {
+        document.getElementById('company_id').addEventListener('change', onCompanyChange);
+        window.companyChangeBound = true;
+    }*/
 
     // Import form submit
     document.getElementById('importForm').addEventListener('submit', async (e) => {
@@ -28,15 +32,16 @@ document.addEventListener('DOMContentLoaded', () => {
         await importExcel();
     });
 
-    loadHistory();
+    // loadHistory();
 });
 
 async function importExcel() {
     const companyId = document.getElementById('company_id').value;
-    const branchId = document.getElementById('branch_id').value;
+    // const branchId = document.getElementById('branch_id').value;
+    const branchId = 0;
     const fileInput = document.getElementById('file');
 
-    if (!companyId || !branchId) {
+    if (!companyId) {
         warningAlert('Please select Company and Branch');
         return;
     }
@@ -59,12 +64,12 @@ async function importExcel() {
         spinner.classList.remove('d-none');
 
         const res = await axios.post(`${API_URL}/excel`, formData, {
-            headers: { 'Content-Type': 'multipart/form-data' }
+            headers: {'Content-Type': 'multipart/form-data'}
         });
 
         showResults(res.data.data);
         successAlert('Import completed successfully');
-        loadHistory();
+        //loadHistory();
         fileInput.value = '';
 
     } catch (err) {
@@ -86,6 +91,33 @@ function showResults(data) {
     const statusClass = data.failedCount === 0 ? 'bg-success' : (data.successCount === 0 ? 'bg-danger' : 'bg-warning');
     document.getElementById('resultsBadge').innerHTML = `<span class="badge ${statusClass}">${data.failedCount === 0 ? 'All Success' : `${data.failedCount} Failed`}</span>`;
 
+    // Success table
+    const successTable = document.getElementById('successTable');
+    successTable.innerHTML = '';
+    data.success.forEach(s => {
+        successTable.innerHTML += `
+            <tr>
+                <td>${s.sheet}</td>
+                <td>${s.row + 1}</td>
+                <td>${s.type}</td>
+                <td>${s.name}</td>
+            </tr>`;
+    });
+
+    // Error table
+    const errorTable = document.getElementById('failedTable');
+    errorTable.innerHTML = '';
+    data.errors.forEach(e => {
+        errorTable.innerHTML += `
+            <tr>
+                <td>${e.sheet}</td>
+                <td>${e.row + 1}</td>
+                <td>${e.type}</td>
+                <td>${e.name}</td>
+                <td>${e.error}</td>
+            </tr>`;
+    });
+
     // Sheets table
     const sheetsTable = document.getElementById('sheetsTable');
     sheetsTable.innerHTML = '';
@@ -101,7 +133,7 @@ function showResults(data) {
 
     // Load details from API
     currentImportId = data.importId;
-    loadResultDetails(data.importId);
+    // loadResultDetails(data.importId);
 }
 
 async function loadResultDetails(importId) {
@@ -142,7 +174,7 @@ async function loadHistory(page = 1) {
 
     try {
         const res = await axios.get(`${API_URL}/logs`, {
-            params: { company_id: companyId, page, limit: 10 }
+            params: {company_id: companyId, page, limit: 10}
         });
 
         renderHistory(res.data.data.data);
@@ -209,7 +241,7 @@ async function loadDetails(status) {
 
     try {
         const res = await axios.get(`${API_URL}/details/${currentImportId}`, {
-            params: { status: status || '' }
+            params: {status: status || ''}
         });
 
         const tbody = document.getElementById('detailsTable');

@@ -6,14 +6,14 @@ const sequelize = require('../config/database');
 const { QueryTypes } = require('sequelize');
 
 class CatalogService {
-    
+
     /**
      * Validate token and company code
      */
     async validateToken(token, companyCode) {
         try {
             const cleanToken = (token || '').replace('Bearer ', '').trim();
-            
+
             // Validate token matches company_code
             const company = await sequelize.query(
                     `SELECT company_id, company_code
@@ -58,12 +58,12 @@ class CatalogService {
             const companyId = companyInfo.company_id;
 
             // 2. Get Branches
-            const branches = await sequelize.query(
+            /*const branches = await sequelize.query(
                 `SELECT branch_id, company_id, branch_name, branch_code, email, phone,
                     address_line1, address_line2, city, postcode, country, opening_time, closing_time
                 FROM branches WHERE company_id = ? AND is_active = 1 ORDER BY branch_name`,
                 { replacements: [companyId], type: QueryTypes.SELECT }
-            );
+            );*/
 
             // 3. Get Sizes
             const sizes = await sequelize.query(
@@ -74,13 +74,12 @@ class CatalogService {
 
             // 4. Get Categories
             const categories = await sequelize.query(
-                `SELECT c.category_id, c.branch_id, c.category_name, c.category_code, c.description,
+                `SELECT c.category_id, c.company_id, c.category_name, c.category_code, c.description,
                     c.category_type, c.has_sizes, c.has_toppings, c.has_addons, c.has_flavours,
                     c.has_choices, c.has_half_and_half, c.image_url, c.display_order
                 FROM categories c
-                JOIN branches b ON c.branch_id = b.branch_id
-                WHERE b.company_id = ? AND c.is_active = 1
-                ORDER BY c.branch_id, c.display_order`,
+                WHERE c.company_id = ? AND c.is_active = 1
+                ORDER BY c.display_order`,
                 { replacements: [companyId], type: QueryTypes.SELECT }
             );
 
@@ -90,8 +89,7 @@ class CatalogService {
                 FROM category_sizes cs
                 JOIN sizes s ON cs.size_id = s.size_id
                 JOIN categories cat ON cs.category_id = cat.category_id
-                JOIN branches b ON cat.branch_id = b.branch_id
-                WHERE b.company_id = ? AND cs.is_active = 1 AND s.is_active = 1
+                WHERE cat.company_id = ? AND cs.is_active = 1 AND s.is_active = 1
                 ORDER BY cs.category_id, cs.display_order`,
                 { replacements: [companyId], type: QueryTypes.SELECT }
             );
@@ -104,10 +102,9 @@ class CatalogService {
                 FROM category_toppings ct
                 JOIN toppings t ON ct.topping_id = t.topping_id
                 JOIN categories cat ON ct.category_id = cat.category_id
-                JOIN branches b ON cat.branch_id = b.branch_id
                 LEFT JOIN category_topping_prices ctp ON ct.category_topping_id = ctp.category_topping_id AND ctp.is_active = 1
                 LEFT JOIN sizes sz ON ctp.size_id = sz.size_id
-                WHERE b.company_id = ? AND ct.is_active = 1 AND t.is_active = 1
+                WHERE cat.company_id = ? AND ct.is_active = 1 AND t.is_active = 1
                 ORDER BY ct.category_id, ct.display_order, sz.display_order`,
                 { replacements: [companyId], type: QueryTypes.SELECT }
             );
@@ -122,12 +119,11 @@ class CatalogService {
                 FROM category_addon_groups cag
                 JOIN addon_groups ag ON cag.addon_group_id = ag.addon_group_id
                 JOIN categories cat ON cag.category_id = cat.category_id
-                JOIN branches b ON cat.branch_id = b.branch_id
                 JOIN addons a ON ag.addon_group_id = a.addon_group_id AND a.is_active = 1
                 JOIN category_addon_prices cap ON cag.category_addon_group_id = cap.category_addon_group_id 
                     AND cap.addon_id = a.addon_id AND cap.is_active = 1
                 LEFT JOIN sizes sz ON cap.size_id = sz.size_id
-                WHERE b.company_id = ? AND cag.is_active = 1 AND ag.is_active = 1
+                WHERE cat.company_id = ? AND cag.is_active = 1 AND ag.is_active = 1
                 ORDER BY cag.category_id, cag.display_order, a.display_order, sz.display_order`,
                 { replacements: [companyId], type: QueryTypes.SELECT }
             );
@@ -142,12 +138,11 @@ class CatalogService {
                 FROM category_choice_groups ccg
                 JOIN choice_groups cg ON ccg.choice_group_id = cg.choice_group_id
                 JOIN categories cat ON ccg.category_id = cat.category_id
-                JOIN branches b ON cat.branch_id = b.branch_id
                 JOIN choices c ON cg.choice_group_id = c.choice_group_id AND c.is_active = 1
                  JOIN category_choice_prices ccp ON ccg.category_choice_group_id = ccp.category_choice_group_id 
                     AND ccp.choice_id = c.choice_id AND ccp.is_active = 1
                 LEFT JOIN sizes sz ON ccp.size_id = sz.size_id
-                WHERE b.company_id = ? AND ccg.is_active = 1 AND cg.is_active = 1
+                WHERE cat.company_id = ? AND ccg.is_active = 1 AND cg.is_active = 1
                 ORDER BY ccg.category_id, ccg.display_order, c.display_order, sz.display_order`,
                 { replacements: [companyId], type: QueryTypes.SELECT }
             );
@@ -160,10 +155,9 @@ class CatalogService {
                 FROM category_flavours cf
                 JOIN flavours f ON cf.flavour_id = f.flavour_id
                 JOIN categories cat ON cf.category_id = cat.category_id
-                JOIN branches b ON cat.branch_id = b.branch_id
                 LEFT JOIN category_flavour_prices cfp ON cf.category_flavour_id = cfp.category_flavour_id AND cfp.is_active = 1
                 LEFT JOIN sizes sz ON cfp.size_id = sz.size_id
-                WHERE b.company_id = ? AND cf.is_active = 1 AND f.is_active = 1
+                WHERE cat.company_id = ? AND cf.is_active = 1 AND f.is_active = 1
                 ORDER BY cf.category_id, cf.display_order, sz.display_order`,
                 { replacements: [companyId], type: QueryTypes.SELECT }
             );
@@ -175,8 +169,7 @@ class CatalogService {
                     p.has_custom_choices, p.included_toppings_count, p.is_half_and_half, p.image_url, p.display_order
                 FROM products p
                 JOIN categories cat ON p.category_id = cat.category_id
-                JOIN branches b ON cat.branch_id = b.branch_id
-                WHERE b.company_id = ? AND p.is_active = 1
+                WHERE cat.company_id = ? AND p.is_active = 1
                 ORDER BY p.category_id, p.display_order`,
                 { replacements: [companyId], type: QueryTypes.SELECT }
             );
@@ -188,8 +181,7 @@ class CatalogService {
                 JOIN sizes s ON pp.size_id = s.size_id
                 JOIN products p ON pp.product_id = p.product_id
                 JOIN categories cat ON p.category_id = cat.category_id
-                JOIN branches b ON cat.branch_id = b.branch_id
-                WHERE b.company_id = ? AND pp.is_active = 1 AND s.is_active = 1
+                WHERE cat.company_id = ? AND pp.is_active = 1 AND s.is_active = 1
                 ORDER BY pp.product_id, s.display_order`,
                 { replacements: [companyId], type: QueryTypes.SELECT }
             );
@@ -203,17 +195,16 @@ class CatalogService {
     JOIN flavours f ON pf.flavour_id = f.flavour_id
     JOIN products p ON pf.product_id = p.product_id
     JOIN categories cat ON p.category_id = cat.category_id
-    JOIN branches b ON cat.branch_id = b.branch_id
     LEFT JOIN product_flavour_prices pfp ON pf.product_flavour_id = pfp.product_flavour_id AND pfp.is_active = 1
     LEFT JOIN sizes sz ON pfp.size_id = sz.size_id
-    WHERE b.company_id = ? AND pf.is_active = 1 AND f.is_active = 1 AND p.has_custom_flavours = 1
+    WHERE cat.company_id = ? AND pf.is_active = 1 AND f.is_active = 1 AND p.has_custom_flavours = 1
     ORDER BY pf.product_id, pf.display_order, sz.display_order`,
                 { replacements: [companyId], type: QueryTypes.SELECT }
             );
 
             // Build the hierarchical structure
             return this.buildCatalogStructure(
-                companyInfo, branches, sizes, categories, categorySizes,
+                companyInfo, sizes, categories, categorySizes,
                 categoryToppings, categoryAddonGroups, categoryChoiceGroups,
                 categoryFlavours, products, productPrices,productFlavours
             );
@@ -227,7 +218,7 @@ class CatalogService {
     /**
      * Build hierarchical catalog structure from query results
      */
-    buildCatalogStructure(companyInfo, branches, sizes, categories, categorySizes,
+    buildCatalogStructure(companyInfo, sizes, categories, categorySizes,
                           categoryToppings, categoryAddonGroups, categoryChoiceGroups,
                           categoryFlavours, products, productPrices,productFlavours  ) {
 
@@ -253,7 +244,7 @@ class CatalogService {
             //     size_code: s.size_code,
             //     display_order: s.display_order
             // })),
-            branches: []
+            categories: []
         };
 
         // Group data by category_id for quick lookup
@@ -265,114 +256,94 @@ class CatalogService {
         const productsMap = this.groupBy(products, 'category_id');
         const productPricesMap = this.groupBy(productPrices, 'product_id');
         const productFlavoursMap = this.groupProductFlavours(productFlavours);
-        // Build branches with categories
-        for (const branch of branches) {
-            const branchData = {
-                branch_id: branch.branch_id,
-                branch_name: branch.branch_name,
-                branch_code: branch.branch_code,
-                email: branch.email,
-                phone: branch.phone,
-                address_line1: branch.address_line1,
-                address_line2: branch.address_line2,
-                city: branch.city,
-                postcode: branch.postcode,
-                country: branch.country,
-                opening_time: branch.opening_time,
-                closing_time: branch.closing_time,
-                categories: []
+
+        // Get categories for this branch
+        const branchCategories = categories.filter(c => c.company_id === companyInfo.company_id);
+
+        for (const cat of branchCategories) {
+            const categoryData = {
+                category_id: cat.category_id,
+                category_name: cat.category_name,
+                category_code: cat.category_code,
+                description: cat.description,
+                category_type: cat.category_type,
+                image_url: cat.image_url,
+                display_order: cat.display_order,
+                settings: {
+                    has_sizes: cat.has_sizes === 1,
+                    has_toppings: cat.has_toppings === 1,
+                    has_addons: cat.has_addons === 1,
+                    has_flavours: cat.has_flavours === 1,
+                    has_choices: cat.has_choices === 1,
+                    has_half_and_half: cat.has_half_and_half === 1
+                }
             };
 
-            // Get categories for this branch
-            const branchCategories = categories.filter(c => c.branch_id === branch.branch_id);
-
-            for (const cat of branchCategories) {
-                const categoryData = {
-                    category_id: cat.category_id,
-                    category_name: cat.category_name,
-                    category_code: cat.category_code,
-                    description: cat.description,
-                    category_type: cat.category_type,
-                    image_url: cat.image_url,
-                    display_order: cat.display_order,
-                    settings: {
-                        has_sizes: cat.has_sizes === 1,
-                        has_toppings: cat.has_toppings === 1,
-                        has_addons: cat.has_addons === 1,
-                        has_flavours: cat.has_flavours === 1,
-                        has_choices: cat.has_choices === 1,
-                        has_half_and_half: cat.has_half_and_half === 1
-                    }
-                };
-
-                // Add sizes
-                if (cat.has_sizes && catSizesMap[cat.category_id]) {
-                    categoryData.sizes = catSizesMap[cat.category_id].map(cs => ({
-                        size_id: cs.size_id,
-                        size_name: cs.size_name,
-                        size_code: cs.size_code,
-                        display_order: cs.display_order
-                    }));
-                }
-
-                // Add toppings with prices
-                if (cat.has_toppings && catToppingsMap[cat.category_id]) {
-                    categoryData.toppings = catToppingsMap[cat.category_id];
-                }
-
-                // Add addon groups
-                if (cat.has_addons && catAddonGroupsMap[cat.category_id]) {
-                    categoryData.addon_groups = catAddonGroupsMap[cat.category_id];
-                }
-
-                // Add choice groups
-                if (cat.has_choices && catChoiceGroupsMap[cat.category_id]) {
-                    categoryData.choice_groups = catChoiceGroupsMap[cat.category_id];
-                }
-
-                // Add flavours
-                if (cat.has_flavours && catFlavoursMap[cat.category_id]) {
-                    categoryData.flavours = catFlavoursMap[cat.category_id];
-                }
-
-                // Add products with prices
-                categoryData.products = (productsMap[cat.category_id] || []).map(p => {
-                    const productData = {
-                        product_id: p.product_id,
-                        product_name: p.product_name,
-                        product_code: p.product_code,
-                        description: p.description,
-                        base_price: p.base_price ? parseFloat(p.base_price) : null,
-                        image_url: p.image_url,
-                        display_order: p.display_order,
-                        included_toppings_count: p.included_toppings_count,
-                        is_half_and_half: p.is_half_and_half === 1,
-                        settings: {
-                            has_custom_toppings: p.has_custom_toppings === 1,
-                            has_custom_addons: p.has_custom_addons === 1,
-                            has_custom_flavours: p.has_custom_flavours === 1,
-                            has_custom_choices: p.has_custom_choices === 1
-                        },
-                        prices: (productPricesMap[p.product_id] || []).map(pp => ({
-                            size_id: pp.size_id,
-                            size_name: pp.size_name,
-                            size_code: pp.size_code,
-                            price: parseFloat(pp.price) || 0
-                        }))
-                    };
-
-                    // If product has custom flavours, add them
-                    if (p.has_custom_flavours === 1 && productFlavoursMap[p.product_id]) {
-                        productData.flavours = productFlavoursMap[p.product_id];
-                    }
-
-                    return productData;
-                });
-
-                branchData.categories.push(categoryData);
+            // Add sizes
+            if (cat.has_sizes && catSizesMap[cat.category_id]) {
+                categoryData.sizes = catSizesMap[cat.category_id].map(cs => ({
+                    size_id: cs.size_id,
+                    size_name: cs.size_name,
+                    size_code: cs.size_code,
+                    display_order: cs.display_order
+                }));
             }
 
-            catalog.branches.push(branchData);
+            // Add toppings with prices
+            if (cat.has_toppings && catToppingsMap[cat.category_id]) {
+                categoryData.toppings = catToppingsMap[cat.category_id];
+            }
+
+            // Add addon groups
+            if (cat.has_addons && catAddonGroupsMap[cat.category_id]) {
+                categoryData.addon_groups = catAddonGroupsMap[cat.category_id];
+            }
+
+            // Add choice groups
+            if (cat.has_choices && catChoiceGroupsMap[cat.category_id]) {
+                categoryData.choice_groups = catChoiceGroupsMap[cat.category_id];
+            }
+
+            // Add flavours
+            if (cat.has_flavours && catFlavoursMap[cat.category_id]) {
+                categoryData.flavours = catFlavoursMap[cat.category_id];
+            }
+
+            // Add products with prices
+            categoryData.products = (productsMap[cat.category_id] || []).map(p => {
+                const productData = {
+                    product_id: p.product_id,
+                    product_name: p.product_name,
+                    product_code: p.product_code,
+                    description: p.description,
+                    base_price: p.base_price ? parseFloat(p.base_price) : null,
+                    image_url: p.image_url,
+                    display_order: p.display_order,
+                    included_toppings_count: p.included_toppings_count,
+                    is_half_and_half: p.is_half_and_half === 1,
+                    settings: {
+                        has_custom_toppings: p.has_custom_toppings === 1,
+                        has_custom_addons: p.has_custom_addons === 1,
+                        has_custom_flavours: p.has_custom_flavours === 1,
+                        has_custom_choices: p.has_custom_choices === 1
+                    },
+                    prices: (productPricesMap[p.product_id] || []).map(pp => ({
+                        size_id: pp.size_id,
+                        size_name: pp.size_name,
+                        size_code: pp.size_code,
+                        price: parseFloat(pp.price) || 0
+                    }))
+                };
+
+                // If product has custom flavours, add them
+                if (p.has_custom_flavours === 1 && productFlavoursMap[p.product_id]) {
+                    productData.flavours = productFlavoursMap[p.product_id];
+                }
+
+                return productData;
+            });
+
+            catalog.categories.push(categoryData);
         }
 
         return catalog;

@@ -1,4 +1,4 @@
-const { QueryTypes } = require('sequelize');
+const {QueryTypes} = require('sequelize');
 const XLSX = require('xlsx');
 const db = require('../model');
 const sequelize = db.sequelize;
@@ -11,6 +11,7 @@ exports.importExcel = async (companyId, branchId, filePath, fileName) => {
         totalRecords: 0,
         successCount: 0,
         failedCount: 0,
+        sheets: [],
         categories: [],
         products: [],
         sizes: [],
@@ -18,6 +19,7 @@ exports.importExcel = async (companyId, branchId, filePath, fileName) => {
         addons: [],
         flavours: [],
         choices: [],
+        success: [],
         errors: []
     };
 
@@ -30,9 +32,12 @@ exports.importExcel = async (companyId, branchId, filePath, fileName) => {
         console.log(`Sheets: ${workbook.SheetNames.length}`);
         console.log('============================================\n');
 
+        // Delete exist record by company
+        await this.recordDestroy(companyId);
+
         // Process each sheet (each sheet = 1 category)
         for (const sheetName of workbook.SheetNames) {
-            console.log(`\n========== Processing Sheet: "${sheetName}" ==========`);
+            // console.log(`\n========== Processing Sheet: "${sheetName}" ==========`);
 
             try {
                 const sheetResult = await this.processSheet(workbook, sheetName, companyId, branchId);
@@ -45,14 +50,22 @@ exports.importExcel = async (companyId, branchId, filePath, fileName) => {
                 results.flavours.push(...sheetResult.flavours);
                 results.choices.push(...sheetResult.choices);
                 results.errors.push(...sheetResult.errors);
+                results.success.push(...sheetResult.success);
 
                 results.totalRecords += sheetResult.totalRecords;
                 results.successCount += sheetResult.successCount;
                 results.failedCount += sheetResult.failedCount;
 
+                results.sheets.push({
+                    name: sheetName,
+                    total: sheetResult.totalRecords,
+                    success: sheetResult.successCount,
+                    failed: sheetResult.failedCount
+                });
+
             } catch (err) {
                 console.error(`Error processing sheet "${sheetName}":`, err.message);
-                results.errors.push({ sheet: sheetName, error: err.message });
+                results.errors.push({sheet: sheetName, error: err.message});
             }
         }
 
@@ -82,7 +95,7 @@ exports.importExcel = async (companyId, branchId, filePath, fileName) => {
  */
 exports.processSheet = async (workbook, sheetName, companyId, branchId) => {
     const sheet = workbook.Sheets[sheetName];
-    const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+    const data = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: ''});
 
     const result = {
         category: null,
@@ -93,6 +106,7 @@ exports.processSheet = async (workbook, sheetName, companyId, branchId) => {
         flavours: [],
         choices: [],
         errors: [],
+        success: [],
         totalRecords: 0,
         successCount: 0,
         failedCount: 0
@@ -105,12 +119,13 @@ exports.processSheet = async (workbook, sheetName, companyId, branchId) => {
 
     // Step 1: Analyze sheet to detect sections and flags
     const sheetAnalysis = this.analyzeSheet(data);
+
     console.log(`  Sections found:`, Object.keys(sheetAnalysis.sections).filter(k => sheetAnalysis.sections[k].startRow >= 0));
     console.log(`  Flags: hasSizes=${sheetAnalysis.hasSizes}, hasToppings=${sheetAnalysis.hasToppings}, hasAddons=${sheetAnalysis.hasAddons}, hasFlavours=${sheetAnalysis.hasFlavours}, hasChoices=${sheetAnalysis.hasChoices}`);
 
     // Step 2: Insert Category with flags
-    const categoryId = await this.insertCategory(branchId, sheetName, sheetAnalysis);
-    result.category = { id: categoryId, name: sheetName };
+    const categoryId = await this.insertCategory(companyId, branchId, sheetName, sheetAnalysis);
+    result.category = {id: categoryId, name: sheetName};
     console.log(`  ✅ Category "${sheetName}" -> ID: ${categoryId}`);
 
     // Step 3: Process Products
@@ -119,9 +134,10 @@ exports.processSheet = async (workbook, sheetName, companyId, branchId) => {
         result.products = productResult.products;
         result.sizes.push(...productResult.sizes);
         result.totalRecords += productResult.total;
-        result.successCount += productResult.success;
+        result.successCount += productResult.successCount;
         result.failedCount += productResult.failed;
         result.errors.push(...productResult.errors);
+        result.success.push(...productResult.success);
     }
 
     // Step 4: Process Toppings
@@ -129,9 +145,10 @@ exports.processSheet = async (workbook, sheetName, companyId, branchId) => {
         const toppingResult = await this.processToppings(data, sheetAnalysis, companyId, categoryId, sheetName);
         result.toppings = toppingResult.toppings;
         result.totalRecords += toppingResult.total;
-        result.successCount += toppingResult.success;
+        result.successCount += toppingResult.successCount;
         result.failedCount += toppingResult.failed;
         result.errors.push(...toppingResult.errors);
+        result.success.push(...toppingResult.success);
     }
 
     // Step 5: Process Addons
@@ -139,9 +156,10 @@ exports.processSheet = async (workbook, sheetName, companyId, branchId) => {
         const addonResult = await this.processAddons(data, sheetAnalysis, companyId, categoryId, sheetName);
         result.addons = addonResult.addons;
         result.totalRecords += addonResult.total;
-        result.successCount += addonResult.success;
+        result.successCount += addonResult.successCount;
         result.failedCount += addonResult.failed;
         result.errors.push(...addonResult.errors);
+        result.success.push(...addonResult.success);
     }
 
     // Step 6: Process Flavours
@@ -149,9 +167,10 @@ exports.processSheet = async (workbook, sheetName, companyId, branchId) => {
         const flavourResult = await this.processFlavours(data, sheetAnalysis, companyId, categoryId, sheetName);
         result.flavours = flavourResult.flavours;
         result.totalRecords += flavourResult.total;
-        result.successCount += flavourResult.success;
+        result.successCount += flavourResult.successCount;
         result.failedCount += flavourResult.failed;
         result.errors.push(...flavourResult.errors);
+        result.success.push(...flavourResult.success);
     }
 
     // Step 7: Process Choices
@@ -159,9 +178,10 @@ exports.processSheet = async (workbook, sheetName, companyId, branchId) => {
         const choiceResult = await this.processChoices(data, sheetAnalysis, companyId, categoryId, sheetName);
         result.choices = choiceResult.choices;
         result.totalRecords += choiceResult.total;
-        result.successCount += choiceResult.success;
+        result.successCount += choiceResult.successCount;
         result.failedCount += choiceResult.failed;
         result.errors.push(...choiceResult.errors);
+        result.success.push(...choiceResult.success);
     }
 
     return result;
@@ -179,11 +199,11 @@ exports.analyzeSheet = (data) => {
         hasChoices: false,
         hasHalfAndHalf: false,
         sections: {
-            product: { startRow: -1, endRow: -1, headerRow: -1, sizeColumns: {} },
-            topping: { startRow: -1, endRow: -1, headerRow: -1, sizeColumns: {} },
-            addon: { startRow: -1, endRow: -1, headerRow: -1 },
-            flavour: { startRow: -1, endRow: -1, headerRow: -1 },
-            choice: { startRow: -1, endRow: -1, headerRow: -1 }
+            product: {startRow: -1, endRow: -1, headerRow: -1, sizeColumns: {}},
+            topping: {startRow: -1, endRow: -1, headerRow: -1, sizeColumns: {}},
+            addon: {startRow: -1, endRow: -1, headerRow: -1},
+            flavour: {startRow: -1, endRow: -1, headerRow: -1},
+            choice: {startRow: -1, endRow: -1, headerRow: -1}
         }
     };
 
@@ -191,8 +211,8 @@ exports.analyzeSheet = (data) => {
         product: ['product', 'products'],
         topping: ['topping', 'toppings', 'extra toppings', 'extra topping'],
         addon: ['add ons', 'add-ons', 'addons', 'addon', 'add on'],
-        flavour: ['flavour', 'flavours', 'flavor', 'flavors', 'flavour choice', 'flavor choice'],
-        choice: ['choice', 'choices', 'main course']
+        flavour: ['flavour', 'flavours', 'flavor', 'flavors', 'flavour choice', 'flavor choice', 'product flavours'],
+        choice: ['choice', 'choices']
     };
 
     let currentSection = null;
@@ -208,7 +228,7 @@ exports.analyzeSheet = (data) => {
             if (keywords.includes(firstCell)) {
                 analysis.sections[section].startRow = i;
                 analysis.sections[section].headerRow = i + 1; // Next row is column header
-                sectionOrder.push({ section, startRow: i });
+                sectionOrder.push({section, startRow: i});
 
                 // Set flags
                 if (section === 'topping') analysis.hasToppings = true;
@@ -318,19 +338,62 @@ exports.detectSizeColumns = (headerRow) => {
 };
 
 /**
+ * Delete record by company
+ */
+exports.recordDestroy = async (companyId) => {
+    try {
+        const tables = [
+            "choices",
+            "category_choice_groups",
+            "choice_groups",
+            "category_flavour_prices",
+            "category_flavours",
+            "flavours",
+            "addons",
+            "category_addon_groups",
+            "addon_groups",
+            "category_topping_prices",
+            "category_toppings",
+            "toppings",
+            "product_prices",
+            "products",
+            "category_sizes",
+            "sizes",
+            "categories"
+        ];
+
+        for (const table of tables) {
+            await sequelize.query(
+                `DELETE
+                 FROM ${table}
+                 WHERE company_id = :company_id`,
+                {
+                    replacements: {company_id: companyId},
+                    type: QueryTypes.DELETE
+                }
+            );
+        }
+
+        return true;
+
+    } catch (error) {
+        console.error(`Record delete : "${companyId}":`, error.message);
+        throw error;
+    }
+};
+
+/**
  * Insert Category with flags
  */
-exports.insertCategory = async (branchId, categoryName, analysis) => {
+exports.insertCategory = async (companyId, branchId, categoryName, analysis) => {
     try {
         await sequelize.query(
-            `INSERT INTO categories (
-                branch_id, category_name, has_sizes, has_toppings, has_addons, 
-                has_flavours, has_choices, has_half_and_half, display_order, is_active, created_at, updated_at
-            ) VALUES (
-                :branch_id, :name, :has_sizes, :has_toppings, :has_addons,
-                :has_flavours, :has_choices, :has_half_and_half, 0, 1, NOW(), NOW()
-            )
-            ON DUPLICATE KEY UPDATE 
+            `INSERT INTO categories (company_id, branch_id, category_name, has_sizes, has_toppings, has_addons,
+                                     has_flavours, has_choices, has_half_and_half, display_order, is_active, created_at,
+                                     updated_at)
+             VALUES (:company_id, :branch_id, :name, :has_sizes, :has_toppings, :has_addons,
+                     :has_flavours, :has_choices, :has_half_and_half, 0, 1, NOW(), NOW()) ON DUPLICATE KEY
+            UPDATE
                 has_sizes = :has_sizes,
                 has_toppings = :has_toppings,
                 has_addons = :has_addons,
@@ -342,6 +405,7 @@ exports.insertCategory = async (branchId, categoryName, analysis) => {
                 is_active = 1`,
             {
                 replacements: {
+                    company_id: companyId,
                     branch_id: branchId,
                     name: categoryName,
                     has_sizes: analysis.hasSizes ? 1 : 0,
@@ -356,8 +420,11 @@ exports.insertCategory = async (branchId, categoryName, analysis) => {
         );
 
         const result = await sequelize.query(
-            `SELECT category_id FROM categories WHERE branch_id = :branch_id AND category_name = :name`,
-            { replacements: { branch_id: branchId, name: categoryName }, type: QueryTypes.SELECT }
+            `SELECT category_id
+             FROM categories
+             WHERE company_id = :company_id
+               AND category_name = :name`,
+            {replacements: {company_id: companyId, name: categoryName}, type: QueryTypes.SELECT}
         );
 
         return result[0].category_id;
@@ -382,8 +449,12 @@ exports.ensureSize = async (companyId, sizeCode) => {
     try {
         // Check if exists
         let result = await sequelize.query(
-            `SELECT size_id FROM sizes WHERE company_id = :company_id AND size_code = :code AND deleted_at IS NULL`,
-            { replacements: { company_id: companyId, code: sizeCode }, type: QueryTypes.SELECT }
+            `SELECT size_id
+             FROM sizes
+             WHERE company_id = :company_id
+               AND size_code = :code
+               AND deleted_at IS NULL`,
+            {replacements: {company_id: companyId, code: sizeCode}, type: QueryTypes.SELECT}
         );
 
         if (result && result.length > 0) {
@@ -393,8 +464,8 @@ exports.ensureSize = async (companyId, sizeCode) => {
         // Insert new size
         await sequelize.query(
             `INSERT INTO sizes (company_id, size_name, size_code, display_order, is_active, created_at)
-             VALUES (:company_id, :name, :code, 0, 1, NOW())
-             ON DUPLICATE KEY UPDATE updated_at = NOW(), deleted_at = NULL`,
+             VALUES (:company_id, :name, :code, 0, 1, NOW()) ON DUPLICATE KEY
+            UPDATE updated_at = NOW(), deleted_at = NULL`,
             {
                 replacements: {
                     company_id: companyId,
@@ -406,8 +477,11 @@ exports.ensureSize = async (companyId, sizeCode) => {
         );
 
         result = await sequelize.query(
-            `SELECT size_id FROM sizes WHERE company_id = :company_id AND size_code = :code`,
-            { replacements: { company_id: companyId, code: sizeCode }, type: QueryTypes.SELECT }
+            `SELECT size_id
+             FROM sizes
+             WHERE company_id = :company_id
+               AND size_code = :code`,
+            {replacements: {company_id: companyId, code: sizeCode}, type: QueryTypes.SELECT}
         );
 
         return result[0].size_id;
@@ -421,13 +495,14 @@ exports.ensureSize = async (companyId, sizeCode) => {
 /**
  * Map size to category
  */
-exports.mapSizeToCategory = async (categoryId, sizeId) => {
+exports.mapSizeToCategory = async (companyId, categoryId, sizeId) => {
     try {
         await sequelize.query(
-            `INSERT IGNORE INTO category_sizes (category_id, size_id, display_order, is_active, created_at)
-             VALUES (:category_id, :size_id, 0, 1, NOW())`,
+            `INSERT
+            IGNORE INTO category_sizes (company_id, category_id, size_id, display_order, is_active, created_at)
+             VALUES (:company_id, :category_id, :size_id, 0, 1, NOW())`,
             {
-                replacements: { category_id: categoryId, size_id: sizeId },
+                replacements: {company_id: companyId, category_id: categoryId, size_id: sizeId},
                 type: QueryTypes.INSERT
             }
         );
@@ -440,7 +515,7 @@ exports.mapSizeToCategory = async (categoryId, sizeId) => {
  * Process Products Section
  */
 exports.processProducts = async (data, analysis, companyId, branchId, categoryId, sheetName) => {
-    const result = { products: [], sizes: [], total: 0, success: 0, failed: 0, errors: [] };
+    const result = {products: [], sizes: [], total: 0, successCount: 0, failed: 0, errors: [], success: []};
     const section = analysis.sections.product;
 
     if (section.startRow < 0) return result;
@@ -454,8 +529,8 @@ exports.processProducts = async (data, analysis, companyId, branchId, categoryId
             const sizeId = await this.ensureSize(companyId, sizeCode);
             if (sizeId) {
                 sizeIdMap[colIndex] = sizeId;
-                await this.mapSizeToCategory(categoryId, sizeId);
-                result.sizes.push({ code: sizeCode, id: sizeId });
+                await this.mapSizeToCategory(companyId, categoryId, sizeId);
+                result.sizes.push({code: sizeCode, id: sizeId});
             }
         }
     }
@@ -468,50 +543,55 @@ exports.processProducts = async (data, analysis, companyId, branchId, categoryId
         const itemName = String(row[0] || '').trim();
 
         // Skip empty rows or header-like rows
-        if (!itemName || itemName.toLowerCase() === 'items' || itemName.toLowerCase() === 'nan') {
+        if (!itemName || itemName.toLowerCase() === 'items') {
             continue;
         }
 
         result.total++;
 
         try {
-            const productId = await this.insertProduct(categoryId, row, section.sizeColumns, sizeIdMap);
-            result.success++;
-            result.products.push({ id: productId, name: itemName });
+            const productId = await this.insertProduct(companyId, categoryId, row, section.sizeColumns, sizeIdMap);
+            result.successCount++;
+            result.products.push({id: productId, name: itemName});
+            result.success.push({sheet: sheetName, row: i, type: 'Product', name: itemName});
             console.log(`    ✅ Product: "${itemName}" -> ID: ${productId}`);
 
         } catch (err) {
             result.failed++;
-            result.errors.push({ sheet: sheetName, row: i, name: itemName, error: err.message });
+            result.errors.push({sheet: sheetName, row: i, type: 'Product', name: itemName, error: err.message});
             console.log(`    ❌ Product: "${itemName}" -> Error: ${err.message}`);
         }
     }
 
-    console.log(`  Products: ${result.success} success, ${result.failed} failed`);
+    console.log(`  Products: ${result.successCount} success, ${result.failed} failed`);
     return result;
 };
 
 /**
  * Insert Product with prices
  */
-exports.insertProduct = async (categoryId, row, sizeColumns, sizeIdMap) => {
+exports.insertProduct = async (companyId, categoryId, row, sizeColumns, sizeIdMap) => {
     const productName = String(row[0] || '').trim();
     const description = row[1] ? String(row[1]).trim() : null;
 
     // Insert or get product
     await sequelize.query(
-        `INSERT INTO products (category_id, product_name, description, display_order, is_active, created_at)
-         VALUES (:category_id, :name, :description, 0, 1, NOW())
-         ON DUPLICATE KEY UPDATE description = :description, updated_at = NOW(), deleted_at = NULL`,
+        `INSERT INTO products (company_id, category_id, product_name, description, display_order, is_active, created_at)
+         VALUES (:company_id, :category_id, :name, :description, 0, 1, NOW()) ON DUPLICATE KEY
+        UPDATE description = :description, updated_at = NOW(), deleted_at = NULL`,
         {
-            replacements: { category_id: categoryId, name: productName, description: description },
+            replacements: {company_id: companyId, category_id: categoryId, name: productName, description: description},
             type: QueryTypes.INSERT
         }
     );
 
     const productResult = await sequelize.query(
-        `SELECT product_id FROM products WHERE category_id = :category_id AND product_name = :name`,
-        { replacements: { category_id: categoryId, name: productName }, type: QueryTypes.SELECT }
+        `SELECT product_id
+         FROM products
+         WHERE company_id = :company_id
+           AND category_id = :category_id
+           AND product_name = :name`,
+        {replacements: {company_id: companyId, category_id: categoryId, name: productName}, type: QueryTypes.SELECT}
     );
 
     const productId = productResult[0].product_id;
@@ -527,19 +607,21 @@ exports.insertProduct = async (categoryId, row, sizeColumns, sizeIdMap) => {
         if (sizeCode === 'SINGLE') {
             // Update base_price in products table
             await sequelize.query(
-                `UPDATE products SET base_price = :price WHERE product_id = :product_id`,
-                { replacements: { price: price, product_id: productId }, type: QueryTypes.UPDATE }
+                `UPDATE products
+                 SET base_price = :price
+                 WHERE product_id = :product_id`,
+                {replacements: {price: price, product_id: productId}, type: QueryTypes.UPDATE}
             );
         } else {
             // Insert size-wise price
             const sizeId = sizeIdMap[colIndex];
             if (sizeId) {
                 await sequelize.query(
-                    `INSERT INTO product_prices (product_id, size_id, price, is_active, created_at)
-                     VALUES (:product_id, :size_id, :price, 1, NOW())
-                     ON DUPLICATE KEY UPDATE price = :price, updated_at = NOW()`,
+                    `INSERT INTO product_prices (company_id, product_id, size_id, price, is_active, created_at)
+                     VALUES (:company_id, :product_id, :size_id, :price, 1, NOW()) ON DUPLICATE KEY
+                    UPDATE price = :price, updated_at = NOW()`,
                     {
-                        replacements: { product_id: productId, size_id: sizeId, price: price },
+                        replacements: {company_id: companyId, product_id: productId, size_id: sizeId, price: price},
                         type: QueryTypes.INSERT
                     }
                 );
@@ -554,7 +636,7 @@ exports.insertProduct = async (categoryId, row, sizeColumns, sizeIdMap) => {
  * Process Toppings Section
  */
 exports.processToppings = async (data, analysis, companyId, categoryId, sheetName) => {
-    const result = { toppings: [], total: 0, success: 0, failed: 0, errors: [] };
+    const result = {toppings: [], total: 0, successCount: 0, failed: 0, errors: [], success: []};
     const section = analysis.sections.topping;
 
     if (section.startRow < 0) return result;
@@ -579,7 +661,7 @@ exports.processToppings = async (data, analysis, companyId, categoryId, sheetNam
         const row = data[i];
         const itemName = String(row[0] || '').trim();
 
-        if (!itemName || itemName.toLowerCase() === 'items' || itemName.toLowerCase() === 'nan') {
+        if (!itemName || itemName.toLowerCase() === 'items') {
             continue;
         }
 
@@ -587,18 +669,19 @@ exports.processToppings = async (data, analysis, companyId, categoryId, sheetNam
 
         try {
             const toppingId = await this.insertTopping(companyId, categoryId, row, section.sizeColumns, sizeIdMap);
-            result.success++;
-            result.toppings.push({ id: toppingId, name: itemName });
+            result.successCount++;
+            result.toppings.push({id: toppingId, name: itemName});
+            result.success.push({sheet: sheetName, row: i, type: 'Topping', name: itemName});
             console.log(`    ✅ Topping: "${itemName}" -> ID: ${toppingId}`);
 
         } catch (err) {
             result.failed++;
-            result.errors.push({ sheet: sheetName, row: i, name: itemName, error: err.message });
+            result.errors.push({sheet: sheetName, row: i, type: 'Topping', name: itemName, error: err.message});
             console.log(`    ❌ Topping: "${itemName}" -> Error: ${err.message}`);
         }
     }
 
-    console.log(`  Toppings: ${result.success} success, ${result.failed} failed`);
+    console.log(`  Toppings: ${result.successCount} success, ${result.failed} failed`);
     return result;
 };
 
@@ -611,36 +694,43 @@ exports.insertTopping = async (companyId, categoryId, row, sizeColumns, sizeIdMa
     // Insert or get topping (company level)
     await sequelize.query(
         `INSERT INTO toppings (company_id, topping_name, display_order, is_active, created_at)
-         VALUES (:company_id, :name, 0, 1, NOW())
-         ON DUPLICATE KEY UPDATE updated_at = NOW(), deleted_at = NULL`,
+         VALUES (:company_id, :name, 0, 1, NOW()) ON DUPLICATE KEY
+        UPDATE updated_at = NOW(), deleted_at = NULL`,
         {
-            replacements: { company_id: companyId, name: toppingName },
+            replacements: {company_id: companyId, name: toppingName},
             type: QueryTypes.INSERT
         }
     );
 
     const toppingResult = await sequelize.query(
-        `SELECT topping_id FROM toppings WHERE company_id = :company_id AND topping_name = :name`,
-        { replacements: { company_id: companyId, name: toppingName }, type: QueryTypes.SELECT }
+        `SELECT topping_id
+         FROM toppings
+         WHERE company_id = :company_id
+           AND topping_name = :name`,
+        {replacements: {company_id: companyId, name: toppingName}, type: QueryTypes.SELECT}
     );
 
     const toppingId = toppingResult[0].topping_id;
 
     // Map topping to category
     await sequelize.query(
-        `INSERT INTO category_toppings (category_id, topping_id, display_order, is_active, created_at)
-         VALUES (:category_id, :topping_id, 0, 1, NOW())
-         ON DUPLICATE KEY UPDATE updated_at = NOW(), deleted_at = NULL`,
+        `INSERT INTO category_toppings (company_id, category_id, topping_id, display_order, is_active, created_at)
+         VALUES (:company_id, :category_id, :topping_id, 0, 1, NOW()) ON DUPLICATE KEY
+        UPDATE updated_at = NOW(), deleted_at = NULL`,
         {
-            replacements: { category_id: categoryId, topping_id: toppingId },
+            replacements: {company_id: companyId, category_id: categoryId, topping_id: toppingId},
             type: QueryTypes.INSERT
         }
     );
 
     // Get category_topping_id
     const catToppingResult = await sequelize.query(
-        `SELECT category_topping_id FROM category_toppings WHERE category_id = :category_id AND topping_id = :topping_id`,
-        { replacements: { category_id: categoryId, topping_id: toppingId }, type: QueryTypes.SELECT }
+        `SELECT category_topping_id
+         FROM category_toppings
+         WHERE company_id = :company_id
+           AND category_id = :category_id
+           AND topping_id = :topping_id`,
+        {replacements: {company_id: companyId, category_id: categoryId, topping_id: toppingId}, type: QueryTypes.SELECT}
     );
 
     const categoryToppingId = catToppingResult[0].category_topping_id;
@@ -656,11 +746,12 @@ exports.insertTopping = async (companyId, categoryId, row, sizeColumns, sizeIdMa
         if (sizeCode === 'SINGLE') {
             // Single price - insert with size_id = NULL
             await sequelize.query(
-                `INSERT INTO category_topping_prices (category_topping_id, size_id, price, is_active, created_at)
-                 VALUES (:cat_topping_id, NULL, :price, 1, NOW())
-                 ON DUPLICATE KEY UPDATE price = :price, updated_at = NOW()`,
+                `INSERT INTO category_topping_prices (company_id, category_topping_id, size_id, price, is_active,
+                                                      created_at)
+                 VALUES (:company_id, :cat_topping_id, NULL, :price, 1, NOW()) ON DUPLICATE KEY
+                UPDATE price = :price, updated_at = NOW()`,
                 {
-                    replacements: { cat_topping_id: categoryToppingId, price: price },
+                    replacements: {company_id: companyId, cat_topping_id: categoryToppingId, price: price},
                     type: QueryTypes.INSERT
                 }
             );
@@ -668,11 +759,17 @@ exports.insertTopping = async (companyId, categoryId, row, sizeColumns, sizeIdMa
             const sizeId = sizeIdMap[colIndex];
             if (sizeId) {
                 await sequelize.query(
-                    `INSERT INTO category_topping_prices (category_topping_id, size_id, price, is_active, created_at)
-                     VALUES (:cat_topping_id, :size_id, :price, 1, NOW())
-                     ON DUPLICATE KEY UPDATE price = :price, updated_at = NOW()`,
+                    `INSERT INTO category_topping_prices (company_id, category_topping_id, size_id, price, is_active,
+                                                          created_at)
+                     VALUES (:company_id, :cat_topping_id, :size_id, :price, 1, NOW()) ON DUPLICATE KEY
+                    UPDATE price = :price, updated_at = NOW()`,
                     {
-                        replacements: { cat_topping_id: categoryToppingId, size_id: sizeId, price: price },
+                        replacements: {
+                            company_id: companyId,
+                            cat_topping_id: categoryToppingId,
+                            size_id: sizeId,
+                            price: price
+                        },
                         type: QueryTypes.INSERT
                     }
                 );
@@ -687,7 +784,7 @@ exports.insertTopping = async (companyId, categoryId, row, sizeColumns, sizeIdMa
  * Process Addons Section (Even-Odd Column Logic)
  */
 exports.processAddons = async (data, analysis, companyId, categoryId, sheetName) => {
-    const result = { addons: [], total: 0, success: 0, failed: 0, errors: [] };
+    const result = {addons: [], total: 0, successCount: 0, failed: 0, errors: [], success: []};
     const section = analysis.sections.addon;
 
     if (section.startRow < 0) return result;
@@ -706,7 +803,7 @@ exports.processAddons = async (data, analysis, companyId, categoryId, sheetName)
         const groupName = String(groupRow[col] || '').trim();
         if (groupName && groupName.toLowerCase() !== 'items') {
             const groupId = await this.ensureAddonGroup(companyId, categoryId, groupName, sheetName);
-            addonGroups[col] = { name: groupName, id: groupId };
+            addonGroups[col] = {name: groupName, id: groupId};
             console.log(`    Addon Group: "${groupName}" -> ID: ${groupId}`);
         }
     }
@@ -722,7 +819,7 @@ exports.processAddons = async (data, analysis, companyId, categoryId, sheetName)
             const addonName = String(row[col] || '').trim();
             const addonPrice = parseFloat(row[col + 1]) || 0;
 
-            if (!addonName || addonName.toLowerCase() === 'nan') continue;
+            if (!addonName) continue;
 
             // Find which group this column belongs to
             const groupCol = col; // Group is at same column index as addon name
@@ -733,20 +830,21 @@ exports.processAddons = async (data, analysis, companyId, categoryId, sheetName)
             result.total++;
 
             try {
-                const addonId = await this.insertAddon(group.id, addonName, addonPrice);
-                result.success++;
-                result.addons.push({ id: addonId, name: addonName, group: group.name, price: addonPrice });
+                const addonId = await this.insertAddon(companyId, group.id, addonName, addonPrice);
+                result.successCount++;
+                result.addons.push({id: addonId, name: addonName, group: group.name, price: addonPrice});
+                result.success.push({sheet: sheetName, row: i, type: 'Add on', name: addonName});
                 console.log(`      ✅ Addon: "${addonName}" (${group.name}) -> ID: ${addonId}, Price: ${addonPrice}`);
 
             } catch (err) {
                 result.failed++;
-                result.errors.push({ sheet: sheetName, row: i, name: addonName, error: err.message });
+                result.errors.push({sheet: sheetName, row: i, type: 'Add on', name: addonName, error: err.message});
                 console.log(`      ❌ Addon: "${addonName}" -> Error: ${err.message}`);
             }
         }
     }
 
-    console.log(`  Addons: ${result.success} success, ${result.failed} failed`);
+    console.log(`  Addons: ${result.successCount} success, ${result.failed} failed`);
     return result;
 };
 
@@ -759,28 +857,32 @@ exports.ensureAddonGroup = async (companyId, categoryId, groupName, sheetName) =
     // Insert or get addon group
     await sequelize.query(
         `INSERT INTO addon_groups (company_id, group_name, group_code, is_active, created_at)
-         VALUES (:company_id, :name, :code, 1, NOW())
-         ON DUPLICATE KEY UPDATE updated_at = NOW(), deleted_at = NULL`,
+         VALUES (:company_id, :name, :code, 1, NOW()) ON DUPLICATE KEY
+        UPDATE updated_at = NOW(), deleted_at = NULL`,
         {
-            replacements: { company_id: companyId, name: groupName, code: groupCode },
+            replacements: {company_id: companyId, name: groupName, code: groupCode},
             type: QueryTypes.INSERT
         }
     );
 
     const groupResult = await sequelize.query(
-        `SELECT addon_group_id FROM addon_groups WHERE company_id = :company_id AND group_code = :code`,
-        { replacements: { company_id: companyId, code: groupCode }, type: QueryTypes.SELECT }
+        `SELECT addon_group_id
+         FROM addon_groups
+         WHERE company_id = :company_id
+           AND group_code = :code`,
+        {replacements: {company_id: companyId, code: groupCode}, type: QueryTypes.SELECT}
     );
 
     const groupId = groupResult[0].addon_group_id;
 
     // Map to category
     await sequelize.query(
-        `INSERT INTO category_addon_groups (category_id, addon_group_id, display_order, is_active, created_at)
-         VALUES (:category_id, :addon_group_id, 0, 1, NOW())
-         ON DUPLICATE KEY UPDATE updated_at = NOW(), deleted_at = NULL`,
+        `INSERT INTO category_addon_groups (company_id, category_id, addon_group_id, display_order, is_active,
+                                            created_at)
+         VALUES (:company_id, :category_id, :addon_group_id, 0, 1, NOW()) ON DUPLICATE KEY
+        UPDATE updated_at = NOW(), deleted_at = NULL`,
         {
-            replacements: { category_id: categoryId, addon_group_id: groupId },
+            replacements: {company_id: companyId, category_id: categoryId, addon_group_id: groupId},
             type: QueryTypes.INSERT
         }
     );
@@ -791,20 +893,25 @@ exports.ensureAddonGroup = async (companyId, categoryId, groupName, sheetName) =
 /**
  * Insert Addon
  */
-exports.insertAddon = async (addonGroupId, addonName, price) => {
+exports.insertAddon = async (companyId, addonGroupId, addonName, price) => {
     await sequelize.query(
-        `INSERT INTO addons (addon_group_id, addon_name, default_price, display_order, is_active, created_at)
-         VALUES (:addon_group_id, :name, :price, 0, 1, NOW())
-         ON DUPLICATE KEY UPDATE default_price = :price, updated_at = NOW(), deleted_at = NULL`,
+        `INSERT INTO addons (company_id, addon_group_id, addon_name, default_price, display_order, is_active,
+                             created_at)
+         VALUES (:company_id, :addon_group_id, :name, :price, 0, 1, NOW()) ON DUPLICATE KEY
+        UPDATE default_price = :price, updated_at = NOW(), deleted_at = NULL`,
         {
-            replacements: { addon_group_id: addonGroupId, name: addonName, price: price },
+            replacements: {company_id: companyId, addon_group_id: addonGroupId, name: addonName, price: price},
             type: QueryTypes.INSERT
         }
     );
 
     const result = await sequelize.query(
-        `SELECT addon_id FROM addons WHERE addon_group_id = :addon_group_id AND addon_name = :name`,
-        { replacements: { addon_group_id: addonGroupId, name: addonName }, type: QueryTypes.SELECT }
+        `SELECT addon_id
+         FROM addons
+         WHERE company_id = :company_id
+           AND addon_group_id = :addon_group_id
+           AND addon_name = :name`,
+        {replacements: {company_id: companyId, addon_group_id: addonGroupId, name: addonName}, type: QueryTypes.SELECT}
     );
 
     return result[0].addon_id;
@@ -814,7 +921,7 @@ exports.insertAddon = async (addonGroupId, addonName, price) => {
  * Process Flavours Section
  */
 exports.processFlavours = async (data, analysis, companyId, categoryId, sheetName) => {
-    const result = { flavours: [], total: 0, success: 0, failed: 0, errors: [] };
+    const result = {flavours: [], total: 0, successCount: 0, failed: 0, errors: [], success: []};
     const section = analysis.sections.flavour;
 
     if (section.startRow < 0) return result;
@@ -827,7 +934,7 @@ exports.processFlavours = async (data, analysis, companyId, categoryId, sheetNam
         const row = data[i];
         const flavourName = String(row[0] || '').trim();
 
-        if (!flavourName || flavourName.toLowerCase() === 'items' || flavourName.toLowerCase() === 'nan') {
+        if (!flavourName || flavourName.toLowerCase() === 'items') {
             continue;
         }
 
@@ -836,18 +943,19 @@ exports.processFlavours = async (data, analysis, companyId, categoryId, sheetNam
 
         try {
             const flavourId = await this.insertFlavour(companyId, categoryId, flavourName, price);
-            result.success++;
-            result.flavours.push({ id: flavourId, name: flavourName, price: price });
+            result.successCount++;
+            result.flavours.push({id: flavourId, name: flavourName, price: price});
+            result.success.push({sheet: sheetName, row: i, type: 'Flavour', name: flavourName});
             console.log(`    ✅ Flavour: "${flavourName}" -> ID: ${flavourId}, Price: ${price}`);
 
         } catch (err) {
             result.failed++;
-            result.errors.push({ sheet: sheetName, row: i, name: flavourName, error: err.message });
+            result.errors.push({sheet: sheetName, row: i, type: 'Flavour', name: flavourName, error: err.message});
             console.log(`    ❌ Flavour: "${flavourName}" -> Error: ${err.message}`);
         }
     }
 
-    console.log(`  Flavours: ${result.success} success, ${result.failed} failed`);
+    console.log(`  Flavours: ${result.successCount} success, ${result.failed} failed`);
     return result;
 };
 
@@ -858,46 +966,53 @@ exports.insertFlavour = async (companyId, categoryId, flavourName, price) => {
     // Insert or get flavour (company level)
     await sequelize.query(
         `INSERT INTO flavours (company_id, flavour_name, default_price, display_order, is_active, created_at)
-         VALUES (:company_id, :name, :price, 0, 1, NOW())
-         ON DUPLICATE KEY UPDATE default_price = :price, updated_at = NOW(), deleted_at = NULL`,
+         VALUES (:company_id, :name, :price, 0, 1, NOW()) ON DUPLICATE KEY
+        UPDATE default_price = :price, updated_at = NOW(), deleted_at = NULL`,
         {
-            replacements: { company_id: companyId, name: flavourName, price: price },
+            replacements: {company_id: companyId, name: flavourName, price: price},
             type: QueryTypes.INSERT
         }
     );
 
     const flavourResult = await sequelize.query(
-        `SELECT flavour_id FROM flavours WHERE company_id = :company_id AND flavour_name = :name`,
-        { replacements: { company_id: companyId, name: flavourName }, type: QueryTypes.SELECT }
+        `SELECT flavour_id
+         FROM flavours
+         WHERE company_id = :company_id
+           AND flavour_name = :name`,
+        {replacements: {company_id: companyId, name: flavourName}, type: QueryTypes.SELECT}
     );
 
     const flavourId = flavourResult[0].flavour_id;
 
     // Map to category
     await sequelize.query(
-        `INSERT INTO category_flavours (category_id, flavour_id, display_order, is_active, created_at)
-         VALUES (:category_id, :flavour_id, 0, 1, NOW())
-         ON DUPLICATE KEY UPDATE updated_at = NOW(), deleted_at = NULL`,
+        `INSERT INTO category_flavours (company_id, category_id, flavour_id, display_order, is_active, created_at)
+         VALUES (:company_id, :category_id, :flavour_id, 0, 1, NOW()) ON DUPLICATE KEY
+        UPDATE updated_at = NOW(), deleted_at = NULL`,
         {
-            replacements: { category_id: categoryId, flavour_id: flavourId },
+            replacements: {company_id: companyId, category_id: categoryId, flavour_id: flavourId},
             type: QueryTypes.INSERT
         }
     );
 
     // Get category_flavour_id and insert price
     const catFlavourResult = await sequelize.query(
-        `SELECT category_flavour_id FROM category_flavours WHERE category_id = :category_id AND flavour_id = :flavour_id`,
-        { replacements: { category_id: categoryId, flavour_id: flavourId }, type: QueryTypes.SELECT }
+        `SELECT category_flavour_id
+         FROM category_flavours
+         WHERE company_id = :company_id
+           AND category_id = :category_id
+           AND flavour_id = :flavour_id`,
+        {replacements: {company_id: companyId, category_id: categoryId, flavour_id: flavourId}, type: QueryTypes.SELECT}
     );
 
     const categoryFlavourId = catFlavourResult[0].category_flavour_id;
 
     await sequelize.query(
-        `INSERT INTO category_flavour_prices (category_flavour_id, size_id, price, is_active, created_at)
-         VALUES (:cat_flavour_id, NULL, :price, 1, NOW())
-         ON DUPLICATE KEY UPDATE price = :price, updated_at = NOW()`,
+        `INSERT INTO category_flavour_prices (company_id, category_flavour_id, size_id, price, is_active, created_at)
+         VALUES (:company_id, :cat_flavour_id, NULL, :price, 1, NOW()) ON DUPLICATE KEY
+        UPDATE price = :price, updated_at = NOW()`,
         {
-            replacements: { cat_flavour_id: categoryFlavourId, price: price },
+            replacements: {company_id: companyId, cat_flavour_id: categoryFlavourId, price: price},
             type: QueryTypes.INSERT
         }
     );
@@ -909,7 +1024,7 @@ exports.insertFlavour = async (companyId, categoryId, flavourName, price) => {
  * Process Choices Section (Even-Odd Column Logic - Same as Addons)
  */
 exports.processChoices = async (data, analysis, companyId, categoryId, sheetName) => {
-    const result = { choices: [], total: 0, success: 0, failed: 0, errors: [] };
+    const result = {choices: [], total: 0, successCount: 0, failed: 0, errors: [], success: []};
     const section = analysis.sections.choice;
 
     if (section.startRow < 0) return result;
@@ -928,7 +1043,7 @@ exports.processChoices = async (data, analysis, companyId, categoryId, sheetName
         const groupName = String(groupRow[col] || '').trim();
         if (groupName && groupName.toLowerCase() !== 'items' && groupName.toLowerCase() !== 'charges') {
             const groupId = await this.ensureChoiceGroup(companyId, categoryId, groupName, sheetName);
-            choiceGroups[col] = { name: groupName, id: groupId };
+            choiceGroups[col] = {name: groupName, id: groupId};
             console.log(`    Choice Group: "${groupName}" -> ID: ${groupId}`);
         }
     }
@@ -944,7 +1059,7 @@ exports.processChoices = async (data, analysis, companyId, categoryId, sheetName
             const choiceName = String(row[col] || '').trim();
             const choicePrice = parseFloat(row[col + 1]) || 0;
 
-            if (!choiceName || choiceName.toLowerCase() === 'nan') continue;
+            if (!choiceName) continue;
 
             const group = choiceGroups[col];
             if (!group) continue;
@@ -952,20 +1067,21 @@ exports.processChoices = async (data, analysis, companyId, categoryId, sheetName
             result.total++;
 
             try {
-                const choiceId = await this.insertChoice(group.id, choiceName, choicePrice);
-                result.success++;
-                result.choices.push({ id: choiceId, name: choiceName, group: group.name, price: choicePrice });
+                const choiceId = await this.insertChoice(companyId, group.id, choiceName, choicePrice);
+                result.successCount++;
+                result.choices.push({id: choiceId, name: choiceName, group: group.name, price: choicePrice});
+                result.success.push({sheet: sheetName, row: i, type: 'Choice', name: choiceName});
                 console.log(`      ✅ Choice: "${choiceName}" (${group.name}) -> ID: ${choiceId}, Price: ${choicePrice}`);
 
             } catch (err) {
                 result.failed++;
-                result.errors.push({ sheet: sheetName, row: i, name: choiceName, error: err.message });
+                result.errors.push({sheet: sheetName, row: i, type: 'Choice', name: choiceName, error: err.message});
                 console.log(`      ❌ Choice: "${choiceName}" -> Error: ${err.message}`);
             }
         }
     }
 
-    console.log(`  Choices: ${result.success} success, ${result.failed} failed`);
+    console.log(`  Choices: ${result.successCount} success, ${result.failed} failed`);
     return result;
 };
 
@@ -977,28 +1093,32 @@ exports.ensureChoiceGroup = async (companyId, categoryId, groupName, sheetName) 
 
     await sequelize.query(
         `INSERT INTO choice_groups (company_id, group_name, group_code, is_active, created_at)
-         VALUES (:company_id, :name, :code, 1, NOW())
-         ON DUPLICATE KEY UPDATE updated_at = NOW(), deleted_at = NULL`,
+         VALUES (:company_id, :name, :code, 1, NOW()) ON DUPLICATE KEY
+        UPDATE updated_at = NOW(), deleted_at = NULL`,
         {
-            replacements: { company_id: companyId, name: groupName, code: groupCode },
+            replacements: {company_id: companyId, name: groupName, code: groupCode},
             type: QueryTypes.INSERT
         }
     );
 
     const groupResult = await sequelize.query(
-        `SELECT choice_group_id FROM choice_groups WHERE company_id = :company_id AND group_code = :code`,
-        { replacements: { company_id: companyId, code: groupCode }, type: QueryTypes.SELECT }
+        `SELECT choice_group_id
+         FROM choice_groups
+         WHERE company_id = :company_id
+           AND group_code = :code`,
+        {replacements: {company_id: companyId, code: groupCode}, type: QueryTypes.SELECT}
     );
 
     const groupId = groupResult[0].choice_group_id;
 
     // Map to category
     await sequelize.query(
-        `INSERT INTO category_choice_groups (category_id, choice_group_id, display_order, is_active, created_at)
-         VALUES (:category_id, :choice_group_id, 0, 1, NOW())
-         ON DUPLICATE KEY UPDATE updated_at = NOW(), deleted_at = NULL`,
+        `INSERT INTO category_choice_groups (company_id, category_id, choice_group_id, display_order, is_active,
+                                             created_at)
+         VALUES (:company_id, :category_id, :choice_group_id, 0, 1, NOW()) ON DUPLICATE KEY
+        UPDATE updated_at = NOW(), deleted_at = NULL`,
         {
-            replacements: { category_id: categoryId, choice_group_id: groupId },
+            replacements: {company_id: companyId, category_id: categoryId, choice_group_id: groupId},
             type: QueryTypes.INSERT
         }
     );
@@ -1009,20 +1129,28 @@ exports.ensureChoiceGroup = async (companyId, categoryId, groupName, sheetName) 
 /**
  * Insert Choice
  */
-exports.insertChoice = async (choiceGroupId, choiceName, price) => {
+exports.insertChoice = async (companyId, choiceGroupId, choiceName, price) => {
     await sequelize.query(
-        `INSERT INTO choices (choice_group_id, choice_name, default_price, display_order, is_active, created_at)
-         VALUES (:choice_group_id, :name, :price, 0, 1, NOW())
-         ON DUPLICATE KEY UPDATE default_price = :price, updated_at = NOW(), deleted_at = NULL`,
+        `INSERT INTO choices (company_id, choice_group_id, choice_name, default_price, display_order, is_active,
+                              created_at)
+         VALUES (:company_id, :choice_group_id, :name, :price, 0, 1, NOW()) ON DUPLICATE KEY
+        UPDATE default_price = :price, updated_at = NOW(), deleted_at = NULL`,
         {
-            replacements: { choice_group_id: choiceGroupId, name: choiceName, price: price },
+            replacements: {company_id: companyId, choice_group_id: choiceGroupId, name: choiceName, price: price},
             type: QueryTypes.INSERT
         }
     );
 
     const result = await sequelize.query(
-        `SELECT choice_id FROM choices WHERE choice_group_id = :choice_group_id AND choice_name = :name`,
-        { replacements: { choice_group_id: choiceGroupId, name: choiceName }, type: QueryTypes.SELECT }
+        `SELECT choice_id
+         FROM choices
+         WHERE company_id = :company_id
+           AND choice_group_id = :choice_group_id
+           AND choice_name = :name`,
+        {
+            replacements: {company_id: companyId, choice_group_id: choiceGroupId, name: choiceName},
+            type: QueryTypes.SELECT
+        }
     );
 
     return result[0].choice_id;
@@ -1031,9 +1159,9 @@ exports.insertChoice = async (choiceGroupId, choiceName, price) => {
 /**
  * Get import logs
  */
-exports.getImportLogs = async ({ company_id, branch_id, page = 1, limit = 10 }) => {
+exports.getImportLogs = async ({company_id, branch_id, page = 1, limit = 10}) => {
     // Keep existing implementation
-    return { data: [], pagination: { total: 0, page: 1, limit: 10, totalPages: 0 } };
+    return {data: [], pagination: {total: 0, page: 1, limit: 10, totalPages: 0}};
 };
 
 /**

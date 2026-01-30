@@ -23,12 +23,12 @@
                         <% } %>
                     </select>
                 </div>
-                <div class="col-md-4 mb-3">
+                <!--<div class="col-md-4 mb-3">
                     <label class="form-label">Branch <span class="text-danger">*</span></label>
                     <select id="branch_id" class="form-select" required disabled>
                         <option value="">Select Branch</option>
                     </select>
-                </div>
+                </div>-->
                 <div class="col-md-4 mb-3">
                     <label class="form-label">Excel File <span class="text-danger">*</span></label>
                     <input type="file" id="file" class="form-control" accept=".xlsx,.xls" required>
@@ -133,7 +133,7 @@
 </div>
 
 <!-- Import History -->
-<div class="card">
+<div class="card d-none">
     <div class="card-header d-flex justify-content-between align-items-center">
         <strong>📋 Import History</strong>
         <button class="btn btn-sm btn-outline-primary" onclick="loadHistory()">🔄 Refresh</button>
