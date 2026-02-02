@@ -124,7 +124,7 @@ exports.processSheet = async (workbook, sheetName, companyId, branchId) => {
     console.log(`  Flags: hasSizes=${sheetAnalysis.hasSizes}, hasToppings=${sheetAnalysis.hasToppings}, hasAddons=${sheetAnalysis.hasAddons}, hasFlavours=${sheetAnalysis.hasFlavours}, hasChoices=${sheetAnalysis.hasChoices}`);
 
     // Step 2: Insert Category with flags
-    const categoryId = await this.insertCategory(companyId, branchId, sheetName, sheetAnalysis);
+    const categoryId = await this.insertCategory(companyId, 0, sheetName, sheetAnalysis);
     result.category = {id: categoryId, name: sheetName};
     console.log(`  ✅ Category "${sheetName}" -> ID: ${categoryId}`);
 
@@ -388,15 +388,14 @@ exports.recordDestroy = async (companyId) => {
 exports.insertCategory = async (companyId, branchId, categoryName, analysis) => {
     try {
         await sequelize.query(
-            `INSERT INTO categories (company_id, branch_id, category_name, has_sizes, has_toppings, has_addons,
+            `INSERT INTO categories (company_id, category_name, has_sizes, has_toppings, has_addons,
                                      has_flavours, has_choices, has_half_and_half, display_order, is_active, created_at,
                                      updated_at)
-             VALUES (:company_id, :branch_id, :name, :has_sizes, :has_toppings, :has_addons,
+             VALUES (:company_id, :name, :has_sizes, :has_toppings, :has_addons,
                      :has_flavours, :has_choices, :has_half_and_half, 0, 1, NOW(), NOW())`,
             {
                 replacements: {
                     company_id: companyId,
-                    branch_id: branchId,
                     name: categoryName,
                     has_sizes: analysis.hasSizes ? 1 : 0,
                     has_toppings: analysis.hasToppings ? 1 : 0,

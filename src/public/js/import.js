@@ -1,4 +1,4 @@
-let isImportRunning = false;
+
 document.addEventListener('DOMContentLoaded', () => {
     detailsModal = new bootstrap.Modal(document.getElementById('detailsModal'));
 
