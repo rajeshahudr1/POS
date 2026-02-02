@@ -1,3 +1,4 @@
+let isImportRunning = false;
 document.addEventListener('DOMContentLoaded', () => {
     detailsModal = new bootstrap.Modal(document.getElementById('detailsModal'));
 
@@ -27,9 +28,16 @@ document.addEventListener('DOMContentLoaded', () => {
     }*/
 
     // Import form submit
-    document.getElementById('importForm').addEventListener('submit', async (e) => {
+    const importForm = document.getElementById('importForm');
+
+    importForm.addEventListener('submit', async (e) => {
         e.preventDefault();
+
+        if (isImportRunning) return; // ⛔ stop second call
+        isImportRunning = true;
+
         await importExcel();
+        isImportRunning = false; // unlock
     });
 
     // loadHistory();

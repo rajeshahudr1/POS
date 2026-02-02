@@ -392,17 +392,7 @@ exports.insertCategory = async (companyId, branchId, categoryName, analysis) => 
                                      has_flavours, has_choices, has_half_and_half, display_order, is_active, created_at,
                                      updated_at)
              VALUES (:company_id, :branch_id, :name, :has_sizes, :has_toppings, :has_addons,
-                     :has_flavours, :has_choices, :has_half_and_half, 0, 1, NOW(), NOW()) ON DUPLICATE KEY
-            UPDATE
-                has_sizes = :has_sizes,
-                has_toppings = :has_toppings,
-                has_addons = :has_addons,
-                has_flavours = :has_flavours,
-                has_choices = :has_choices,
-                has_half_and_half = :has_half_and_half,
-                updated_at = NOW(),
-                deleted_at = NULL,
-                is_active = 1`,
+                     :has_flavours, :has_choices, :has_half_and_half, 0, 1, NOW(), NOW())`,
             {
                 replacements: {
                     company_id: companyId,
