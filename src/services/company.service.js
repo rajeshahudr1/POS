@@ -130,6 +130,8 @@ exports.remove = async (id, hardDelete = false) => {
             throw new Error(output.message);
         }
 
+        await this.recordDestroy(id);
+
         return { success: true, message: output.message };
 
     } catch (error) {
@@ -200,6 +202,48 @@ exports.list = async ({ page = 1, limit = 10, search = '', is_active = null }) =
 
     } catch (error) {
         throw new Error(error.message || 'Failed to list companies');
+    }
+};
+
+exports.recordDestroy = async (companyId) => {
+    try {
+        const tables = [
+            "choices",
+            "category_choice_groups",
+            "choice_groups",
+            "category_flavour_prices",
+            "category_flavours",
+            "flavours",
+            "addons",
+            "category_addon_groups",
+            "addon_groups",
+            "category_topping_prices",
+            "category_toppings",
+            "toppings",
+            "product_prices",
+            "products",
+            "category_sizes",
+            "sizes",
+            "categories"
+        ];
+
+        for (const table of tables) {
+            await sequelize.query(
+                `DELETE
+                 FROM ${table}
+                 WHERE company_id = :company_id`,
+                {
+                    replacements: {company_id: companyId},
+                    type: QueryTypes.DELETE
+                }
+            );
+        }
+
+        return true;
+
+    } catch (error) {
+        console.error(`Record delete : "${companyId}":`, error.message);
+        throw error;
     }
 };
 
