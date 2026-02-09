@@ -1232,6 +1232,7 @@ exports.processBusinessHoursSheet = async (workbook, sheetName, companyId) => {
         const day = String(row[0] || '').trim();
         const service = String(row[1] || '').trim();
         const time = String(row[2] || '').trim();
+        const delivery_time = String(row[3] || '').trim();
 
         if (!day) continue;
 
@@ -1239,11 +1240,11 @@ exports.processBusinessHoursSheet = async (workbook, sheetName, companyId) => {
 
         try {
             await sequelize.query(
-                `INSERT INTO business_hours (company_id, day, service, time, created_at)
-                 VALUES (:company_id, :day, :service, :time, NOW())
+                `INSERT INTO business_hours (company_id, day, service, time, delivery_time,created_at)
+                 VALUES (:company_id, :day, :service, :time,:delivery_time, NOW())
                  ON DUPLICATE KEY UPDATE time = :time, service = :service, updated_at = NOW(), deleted_at = NULL`,
                 {
-                    replacements: {company_id: companyId, day, service, time},
+                    replacements: {company_id: companyId, day, service, time,delivery_time},
                     type: QueryTypes.INSERT
                 }
             );

@@ -75,7 +75,7 @@ class CatalogService {
 
             // 3a. Get Business Hours
             const businessHours = await sequelize.query(
-                    `SELECT business_hour_id, day, service, time
+                    `SELECT business_hour_id, day, service, time,delivery_time
                      FROM business_hours WHERE company_id = ? ORDER BY business_hour_id`,
                 { replacements: [companyId], type: QueryTypes.SELECT }
             );
