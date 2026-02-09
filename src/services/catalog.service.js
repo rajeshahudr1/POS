@@ -72,6 +72,28 @@ class CatalogService {
                 { replacements: [companyId], type: QueryTypes.SELECT }
             );
 
+
+            // 3a. Get Business Hours
+            const businessHours = await sequelize.query(
+                    `SELECT business_hour_id, day, service, time
+                     FROM business_hours WHERE company_id = ? ORDER BY business_hour_id`,
+                { replacements: [companyId], type: QueryTypes.SELECT }
+            );
+
+            // 3b. Get Special Comments
+            const specialComments = await sequelize.query(
+                    `SELECT comment_id, title, description
+                     FROM special_comments WHERE company_id = ?  ORDER BY comment_id`,
+                { replacements: [companyId], type: QueryTypes.SELECT }
+            );
+
+            // 3c. Get Delivery Charges
+            const deliveryCharges = await sequelize.query(
+                    `SELECT delivery_charge_id, postcode, status, minimum_order, charge, driver_fee, free_delivery_above, distance_limit
+                     FROM delivery_charges WHERE company_id = ? ORDER BY delivery_charge_id`,
+                { replacements: [companyId], type: QueryTypes.SELECT }
+            );
+
             // 4. Get Categories
             const categories = await sequelize.query(
                 `SELECT c.category_id, c.company_id, c.category_name, c.category_code, c.description,
@@ -206,7 +228,7 @@ class CatalogService {
             return this.buildCatalogStructure(
                 companyInfo, sizes, categories, categorySizes,
                 categoryToppings, categoryAddonGroups, categoryChoiceGroups,
-                categoryFlavours, products, productPrices,productFlavours
+                categoryFlavours, products, productPrices,productFlavours,businessHours,specialComments,deliveryCharges
             );
 
         } catch (error) {
@@ -220,7 +242,7 @@ class CatalogService {
      */
     buildCatalogStructure(companyInfo, sizes, categories, categorySizes,
                           categoryToppings, categoryAddonGroups, categoryChoiceGroups,
-                          categoryFlavours, products, productPrices,productFlavours  ) {
+                          categoryFlavours, products, productPrices,productFlavours,businessHours,specialComments ,deliveryCharges ) {
 
         // Build company info
         const catalog = {
@@ -236,14 +258,11 @@ class CatalogService {
                     code: companyInfo.currency_code,
                     symbol: companyInfo.currency_symbol
                 },
-                tax_percentage: parseFloat(companyInfo.tax_percentage) || 0
+                tax_percentage: parseFloat(companyInfo.tax_percentage) || 0,
+                business_hours: businessHours,
+                special_comments: specialComments,
+                delivery_charges: deliveryCharges
             },
-            // sizes: sizes.map(s => ({
-            //     size_id: s.size_id,
-            //     size_name: s.size_name,
-            //     size_code: s.size_code,
-            //     display_order: s.display_order
-            // })),
             categories: []
         };
 

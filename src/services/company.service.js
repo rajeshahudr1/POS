@@ -224,7 +224,10 @@ exports.recordDestroy = async (companyId) => {
             "products",
             "category_sizes",
             "sizes",
-            "categories"
+            "categories",
+            "business_hours",
+            "special_comments",
+            "delivery_charges",
         ];
 
         for (const table of tables) {

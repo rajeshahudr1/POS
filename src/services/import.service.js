@@ -6,6 +6,14 @@ const sequelize = db.sequelize;
 /**
  * Main Import Function
  */
+
+// Fixed sheet keywords for additional processing
+const FIXED_SHEET_KEYWORDS = {
+    businessHours: ['business hours', 'business hour', 'opening hours', 'opening time'],
+    specialComments: ['special comment', 'special comments', 'comments', 'notes'],
+    deliveryCharges: ['delivery charge', 'delivery charges', 'delivery', 'delivery zone', 'delivery zones']
+};
+
 exports.importExcel = async (companyId, branchId, filePath, fileName) => {
     const results = {
         totalRecords: 0,
@@ -19,6 +27,9 @@ exports.importExcel = async (companyId, branchId, filePath, fileName) => {
         addons: [],
         flavours: [],
         choices: [],
+        businessHours: [],
+        specialComments: [],
+        deliveryCharges: [],
         success: [],
         errors: []
     };
@@ -38,7 +49,7 @@ exports.importExcel = async (companyId, branchId, filePath, fileName) => {
         // Process each sheet (each sheet = 1 category)
         for (const sheetName of workbook.SheetNames) {
             // console.log(`\n========== Processing Sheet: "${sheetName}" ==========`);
-
+            const sheetNameLower = sheetName.toLowerCase().trim();
             try {
                 const sheetResult = await this.processSheet(workbook, sheetName, companyId, branchId);
 
@@ -63,6 +74,42 @@ exports.importExcel = async (companyId, branchId, filePath, fileName) => {
                     failed: sheetResult.failedCount
                 });
 
+                // ADDITIONAL: Check if sheet matches fixed sheet keywords
+                const sheetNameLower = sheetName.toLowerCase().trim();
+
+                // Check Business Hours
+                if (FIXED_SHEET_KEYWORDS.businessHours.some(k => sheetNameLower === k || sheetNameLower.includes(k))) {
+                    const bhResult = await this.processBusinessHoursSheet(workbook, sheetName, companyId);
+                    results.businessHours.push(...bhResult.records);
+                    results.totalRecords += bhResult.total;
+                    results.successCount += bhResult.successCount;
+                    results.failedCount += bhResult.failed;
+                    results.errors.push(...bhResult.errors);
+                    results.success.push(...bhResult.success);
+                }
+
+                // Check Special Comments
+                if (FIXED_SHEET_KEYWORDS.specialComments.some(k => sheetNameLower === k || sheetNameLower.includes(k))) {
+                    const scResult = await this.processSpecialCommentsSheet(workbook, sheetName, companyId);
+                    results.specialComments.push(...scResult.records);
+                    results.totalRecords += scResult.total;
+                    results.successCount += scResult.successCount;
+                    results.failedCount += scResult.failed;
+                    results.errors.push(...scResult.errors);
+                    results.success.push(...scResult.success);
+                }
+
+                // Check Delivery Charges
+                if (FIXED_SHEET_KEYWORDS.deliveryCharges.some(k => sheetNameLower === k || sheetNameLower.includes(k))) {
+                    const dcResult = await this.processDeliveryChargesSheet(workbook, sheetName, companyId);
+                    results.deliveryCharges.push(...dcResult.records);
+                    results.totalRecords += dcResult.total;
+                    results.successCount += dcResult.successCount;
+                    results.failedCount += dcResult.failed;
+                    results.errors.push(...dcResult.errors);
+                    results.success.push(...dcResult.success);
+                }
+
             } catch (err) {
                 console.error(`Error processing sheet "${sheetName}":`, err.message);
                 results.errors.push({sheet: sheetName, error: err.message});
@@ -80,6 +127,9 @@ exports.importExcel = async (companyId, branchId, filePath, fileName) => {
         console.log(`Addons: ${results.addons.length}`);
         console.log(`Flavours: ${results.flavours.length}`);
         console.log(`Choices: ${results.choices.length}`);
+        console.log(`Business Hours: ${results.businessHours.length}`);
+        console.log(`Special Comments: ${results.specialComments.length}`);
+        console.log(`Delivery Charges: ${results.deliveryCharges.length}`);
         console.log('============================================\n');
 
         return results;
@@ -359,7 +409,10 @@ exports.recordDestroy = async (companyId) => {
             "products",
             "category_sizes",
             "sizes",
-            "categories"
+            "categories",
+            "business_hours",
+            "special_comments",
+            "delivery_charges",
         ];
 
         for (const table of tables) {
@@ -1158,4 +1211,175 @@ exports.getImportLogs = async ({company_id, branch_id, page = 1, limit = 10}) =>
  */
 exports.getImportDetails = async (importId, status = null) => {
     return [];
+};
+
+/**
+ * Process Business Hours Sheet
+ * Columns: Day | Service | Time
+ */
+exports.processBusinessHoursSheet = async (workbook, sheetName, companyId) => {
+    const sheet = workbook.Sheets[sheetName];
+    const data = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: ''});
+    const result = {records: [], total: 0, successCount: 0, failed: 0, errors: [], success: []};
+
+    console.log(`  Processing Business Hours Sheet: "${sheetName}"`);
+
+    if (data.length < 2) return result;
+
+    // Row 0 = header (Day, Service, Time), data starts from row 1
+    for (let i = 1; i < data.length; i++) {
+        const row = data[i];
+        const day = String(row[0] || '').trim();
+        const service = String(row[1] || '').trim();
+        const time = String(row[2] || '').trim();
+
+        if (!day) continue;
+
+        result.total++;
+
+        try {
+            await sequelize.query(
+                `INSERT INTO business_hours (company_id, day, service, time, created_at)
+                 VALUES (:company_id, :day, :service, :time, NOW())
+                 ON DUPLICATE KEY UPDATE time = :time, service = :service, updated_at = NOW(), deleted_at = NULL`,
+                {
+                    replacements: {company_id: companyId, day, service, time},
+                    type: QueryTypes.INSERT
+                }
+            );
+
+            result.successCount++;
+            result.records.push({day, service, time});
+            result.success.push({sheet: sheetName, row: i, type: 'Business Hour', name: `${day} - ${service}`});
+            console.log(`    ✅ Business Hour: "${day} - ${service}" -> ${time}`);
+
+        } catch (err) {
+            result.failed++;
+            result.errors.push({sheet: sheetName, row: i, type: 'Business Hour', name: `${day} - ${service}`, error: err.message});
+            console.log(`    ❌ Business Hour: "${day} - ${service}" -> Error: ${err.message}`);
+        }
+    }
+
+    console.log(`  Business Hours: ${result.successCount} success, ${result.failed} failed`);
+    return result;
+};
+
+/**
+ * Process Special Comments Sheet
+ * Columns: Title | Description
+ */
+exports.processSpecialCommentsSheet = async (workbook, sheetName, companyId) => {
+    const sheet = workbook.Sheets[sheetName];
+    const data = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: ''});
+    const result = {records: [], total: 0, successCount: 0, failed: 0, errors: [], success: []};
+
+    console.log(`  Processing Special Comments Sheet: "${sheetName}"`);
+
+    if (data.length < 2) return result;
+
+    // Row 0 = header (Title, Description), data starts from row 1
+    for (let i = 1; i < data.length; i++) {
+        const row = data[i];
+        const title = String(row[0] || '').trim();
+        const description = String(row[1] || '').trim();
+
+        if (!title) continue;
+
+        result.total++;
+
+        try {
+            await sequelize.query(
+                `INSERT INTO special_comments (company_id, title, description, created_at)
+                 VALUES (:company_id, :title, :description, NOW())
+                 ON DUPLICATE KEY UPDATE description = :description, updated_at = NOW(), deleted_at = NULL`,
+                {
+                    replacements: {company_id: companyId, title, description},
+                    type: QueryTypes.INSERT
+                }
+            );
+
+            result.successCount++;
+            result.records.push({title, description});
+            result.success.push({sheet: sheetName, row: i, type: 'Special Comment', name: title});
+            console.log(`    ✅ Special Comment: "${title}"`);
+
+        } catch (err) {
+            result.failed++;
+            result.errors.push({sheet: sheetName, row: i, type: 'Special Comment', name: title, error: err.message});
+            console.log(`    ❌ Special Comment: "${title}" -> Error: ${err.message}`);
+        }
+    }
+
+    console.log(`  Special Comments: ${result.successCount} success, ${result.failed} failed`);
+    return result;
+};
+
+/**
+ * Process Delivery Charges Sheet
+ * Columns: PostCode | Status | Minimum Order | Charge | Driver Fee | Free Delivery Above | Distance Limit
+ */
+exports.processDeliveryChargesSheet = async (workbook, sheetName, companyId) => {
+    const sheet = workbook.Sheets[sheetName];
+    const data = XLSX.utils.sheet_to_json(sheet, {header: 1, defval: ''});
+    const result = {records: [], total: 0, successCount: 0, failed: 0, errors: [], success: []};
+
+    console.log(`  Processing Delivery Charges Sheet: "${sheetName}"`);
+
+    if (data.length < 2) return result;
+
+    // Row 0 = header, data starts from row 1
+    for (let i = 1; i < data.length; i++) {
+        const row = data[i];
+        const postcode = String(row[0] || '').trim();
+        const statusRaw = String(row[1] || '').trim().toLowerCase();
+
+        if (!postcode) continue;
+
+        result.total++;
+
+        try {
+            const status = statusRaw === 'exclude' ? 'exclude' : 'include';
+            let minimum_order = null;
+            let charge = null;
+            let driver_fee = null;
+            let free_delivery_above = null;
+            let distance_limit = 0;
+
+            // If include, parse additional columns
+            if (status === 'include') {
+                minimum_order = row[2] ? String(row[2]).trim() : null;
+                charge = row[3] ? String(row[3]).trim() : null;
+                driver_fee = row[4] ? String(row[4]).trim() : null;
+                free_delivery_above = row[5] ? String(row[5]).trim() : null;
+
+                const distanceLimitRaw = String(row[6] || '').trim().toLowerCase();
+                distance_limit = (distanceLimitRaw === 'yes' || distanceLimitRaw === '1' || distanceLimitRaw === 'true') ? 1 : 0;
+            }
+
+            await sequelize.query(
+                `INSERT INTO delivery_charges (company_id, postcode, status, minimum_order, charge, driver_fee, free_delivery_above, distance_limit, created_at)
+                 VALUES (:company_id, :postcode, :status, :minimum_order, :charge, :driver_fee, :free_delivery_above, :distance_limit,  NOW())
+                 ON DUPLICATE KEY UPDATE status = :status, minimum_order = :minimum_order, charge = :charge, 
+                 driver_fee = :driver_fee, free_delivery_above = :free_delivery_above, distance_limit = :distance_limit,
+                 updated_at = NOW(), deleted_at = NULL`,
+                {
+                    replacements: {company_id: companyId, postcode, status, minimum_order, charge, driver_fee, free_delivery_above, distance_limit},
+                    type: QueryTypes.INSERT
+                }
+            );
+
+            result.successCount++;
+            result.records.push({postcode, status, minimum_order, charge, driver_fee, free_delivery_above, distance_limit});
+            result.success.push({sheet: sheetName, row: i, type: 'Delivery Charge', name: postcode});
+            console.log(`    ✅ Delivery Charge: "${postcode}" (${status})`);
+
+        } catch (err) {
+            result.failed++;
+            result.errors.push({sheet: sheetName, row: i, type: 'Delivery Charge', name: postcode, error: err.message});
+            console.log(`    ❌ Delivery Charge: "${postcode}" -> Error: ${err.message}`);
+        }
+    }
+
+    console.log(`  Delivery Charges: ${result.successCount} success, ${result.failed} failed`);
+    return result;
 };
