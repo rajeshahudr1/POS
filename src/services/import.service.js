@@ -556,58 +556,170 @@ exports.mapSizeToCategory = async (companyId, categoryId, sizeId) => {
 /**
  * Process Products Section
  */
-exports.processProducts = async (data, analysis, companyId, branchId, categoryId, sheetName) => {
-    const result = {products: [], sizes: [], total: 0, successCount: 0, failed: 0, errors: [], success: []};
-    const section = analysis.sections.product;
+/**
+ * Detects the format of a sheet section:
+ * Returns { type: 'sized' | 'single', sizeColumns, sizeRow, dataStartRow }
+ */
+function detectSectionFormat(data, headerRow) {
+    const headerRowData = data[headerRow] || [];
+    const nextRowData = data[headerRow + 1] || [];
 
+    // Check if next row contains size labels (numbers like 10", 12" or S/M/L)
+    const sizePattern = /^\d+["']?$|^(S|M|L|XL|XXL|small|medium|large)$/i;
+
+    const sizesInNextRow = {};
+    for (let col = 0; col < nextRowData.length; col++) {
+        const val = String(nextRowData[col] || '').trim();
+        if (val && sizePattern.test(val)) {
+            sizesInNextRow[col] = val;
+        }
+    }
+
+    // Check if header row itself has size labels (some formats put sizes on same row)
+    const sizesInHeaderRow = {};
+    for (let col = 0; col < headerRowData.length; col++) {
+        const val = String(headerRowData[col] || '').trim();
+        if (val && sizePattern.test(val)) {
+            sizesInHeaderRow[col] = val;
+        }
+    }
+
+    if (Object.keys(sizesInNextRow).length > 0) {
+        // ✅ Format 1: Pizzas-style — sizes on row below header
+        return {
+            type: 'sized',
+            sizeColumns: sizesInNextRow,   // e.g. { 2: '10"', 3: '12"', 4: '16"' }
+            sizeRow: headerRow + 1,
+            dataStartRow: headerRow + 2    // data starts after the size row
+        };
+    } else if (Object.keys(sizesInHeaderRow).length > 0) {
+        // ✅ Format 1b: Toppings-style — sizes on same row as "Items"
+        return {
+            type: 'sized',
+            sizeColumns: sizesInHeaderRow,
+            sizeRow: headerRow,
+            dataStartRow: headerRow + 1
+        };
+    } else {
+        // ✅ Format 2: Sheet1-style — single "Charges" column, find it by header name
+        const priceColIndex = headerRowData.findIndex(
+            val => /charge|price|amount|cost/i.test(String(val || ''))
+        );
+        return {
+            type: 'single',
+            sizeColumns: { [priceColIndex !== -1 ? priceColIndex : 2]: 'SINGLE' },
+            sizeRow: headerRow,
+            dataStartRow: headerRow + 1
+        };
+    }
+}
+exports.processProducts = async (data, analysis, companyId, branchId, categoryId, sheetName) => {
+    const result = { products: [], sizes: [], total: 0, successCount: 0, failed: 0, errors: [], success: [] };
+    const section = analysis.sections.product;
     if (section.startRow < 0) return result;
 
-    console.log(`  Processing Products (rows ${section.headerRow + 1} to ${section.endRow})`);
+    // ✅ Auto-detect format
+    const format = detectSectionFormat(data, section.headerRow);
+    console.log(`  Format detected: ${format.type}, sizeColumns:`, format.sizeColumns);
+    console.log(`  Data starts at row: ${format.dataStartRow}`);
 
-    // Ensure sizes exist and map to category
     const sizeIdMap = {};
-    for (const [colIndex, sizeCode] of Object.entries(section.sizeColumns)) {
-        if (sizeCode !== 'SINGLE') {
+
+    if (format.type === 'sized') {
+        // Map size codes to IDs
+        for (const [colIndex, sizeCode] of Object.entries(format.sizeColumns)) {
             const sizeId = await this.ensureSize(companyId, sizeCode);
             if (sizeId) {
                 sizeIdMap[colIndex] = sizeId;
                 await this.mapSizeToCategory(companyId, categoryId, sizeId);
-                result.sizes.push({code: sizeCode, id: sizeId});
+                result.sizes.push({ code: sizeCode, id: sizeId });
             }
         }
     }
 
-    // Process product rows (start after header row)
-    const dataStartRow = section.headerRow + 1;
-
-    for (let i = dataStartRow; i <= section.endRow; i++) {
+    for (let i = format.dataStartRow; i <= section.endRow; i++) {
         const row = data[i];
         const itemName = String(row[0] || '').trim();
 
-        // Skip empty rows or header-like rows
-        if (!itemName || itemName.toLowerCase() === 'items') {
-            continue;
-        }
+        if (!itemName || itemName.toLowerCase() === 'items') continue;
 
         result.total++;
-
         try {
-            const productId = await this.insertProduct(companyId, categoryId, row, section.sizeColumns, sizeIdMap);
+            const productId = await this.insertProduct(
+                companyId, categoryId, row,
+                format.sizeColumns,   // ✅ correctly detected size columns
+                sizeIdMap,
+                format.type           // ✅ pass type so insertProduct knows how to handle price
+            );
             result.successCount++;
-            result.products.push({id: productId, name: itemName});
-            result.success.push({sheet: sheetName, row: i, type: 'Product', name: itemName});
+            result.products.push({ id: productId, name: itemName });
+            result.success.push({ sheet: sheetName, row: i, type: 'Product', name: itemName });
             console.log(`    ✅ Product: "${itemName}" -> ID: ${productId}`);
-
         } catch (err) {
             result.failed++;
-            result.errors.push({sheet: sheetName, row: i, type: 'Product', name: itemName, error: err.message});
+            result.errors.push({ sheet: sheetName, row: i, type: 'Product', name: itemName, error: err.message });
             console.log(`    ❌ Product: "${itemName}" -> Error: ${err.message}`);
         }
     }
 
-    console.log(`  Products: ${result.successCount} success, ${result.failed} failed`);
     return result;
 };
+
+
+
+// exports.processProducts = async (data, analysis, companyId, branchId, categoryId, sheetName) => {
+//     const result = {products: [], sizes: [], total: 0, successCount: 0, failed: 0, errors: [], success: []};
+//     const section = analysis.sections.product;
+//
+//
+//     if (section.startRow < 0) return result;
+//
+//     console.log(`  Processing Products (rows ${section.headerRow + 1} to ${section.endRow})`);
+//
+//     // Ensure sizes exist and map to category
+//     const sizeIdMap = {};
+//     for (const [colIndex, sizeCode] of Object.entries(section.sizeColumns)) {
+//         if (sizeCode !== 'SINGLE') {
+//             const sizeId = await this.ensureSize(companyId, sizeCode);
+//             if (sizeId) {
+//                 sizeIdMap[colIndex] = sizeId;
+//                 await this.mapSizeToCategory(companyId, categoryId, sizeId);
+//                 result.sizes.push({code: sizeCode, id: sizeId});
+//             }
+//         }
+//     }
+//
+//     // Process product rows (start after header row)
+//     const dataStartRow = section.headerRow + 1;
+//
+//     for (let i = dataStartRow; i <= section.endRow; i++) {
+//         const row = data[i];
+//         const itemName = String(row[0] || '').trim();
+//
+//         // Skip empty rows or header-like rows
+//         if (!itemName || itemName.toLowerCase() === 'items') {
+//             continue;
+//         }
+//
+//         result.total++;
+//
+//         try {
+//             const productId = await this.insertProduct(companyId, categoryId, row, section.sizeColumns, sizeIdMap);
+//             result.successCount++;
+//             result.products.push({id: productId, name: itemName});
+//             result.success.push({sheet: sheetName, row: i, type: 'Product', name: itemName});
+//             console.log(`    ✅ Product: "${itemName}" -> ID: ${productId}`);
+//
+//         } catch (err) {
+//             result.failed++;
+//             result.errors.push({sheet: sheetName, row: i, type: 'Product', name: itemName, error: err.message});
+//             console.log(`    ❌ Product: "${itemName}" -> Error: ${err.message}`);
+//         }
+//     }
+//
+//     console.log(`  Products: ${result.successCount} success, ${result.failed} failed`);
+//     return result;
+// };
 
 /**
  * Insert Product with prices
