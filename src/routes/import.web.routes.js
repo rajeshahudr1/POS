@@ -1,7 +1,8 @@
 const router = require('express').Router();
 const axios = require('axios');
 const config = require('../config/app.config');
-
+const authMiddleware = require('../middlewares/auth.middleware');
+router.use(authMiddleware);
 router.get('/import', async (req, res) => {
     try {
 

@@ -1,6 +1,9 @@
 const router = require('express').Router();
 const controller = require('../web/company.web');
 
+const authMiddleware = require('../middlewares/auth.middleware');
+router.use(authMiddleware);
+
 // GET /admin/companies - Company list page
 router.get('/companies', controller.listPage);
 
