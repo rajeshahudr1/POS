@@ -3,7 +3,7 @@
  * Calls SP and builds complete catalog JSON structure
  */
 const sequelize = require('../config/database');
-const { QueryTypes } = require('sequelize');
+const {QueryTypes} = require('sequelize');
 
 class CatalogService {
 
@@ -18,7 +18,8 @@ class CatalogService {
             const company = await sequelize.query(
                     `SELECT company_id, company_code
                      FROM companies
-                     WHERE company_code = ? AND is_active = 1
+                     WHERE company_code = ?
+                       AND is_active = 1
                        LIMIT 1`,
                 {
                     replacements: [companyCode],
@@ -29,12 +30,12 @@ class CatalogService {
 
 
             if (company) {
-                return { isValid: true, companyId: company.company_id, errorMessage: null };
+                return {isValid: true, companyId: company.company_id, errorMessage: null};
             }
-            return { isValid: false, companyId: 0, errorMessage: 'Invalid company code' };
+            return {isValid: false, companyId: 0, errorMessage: 'Invalid company code'};
         } catch (error) {
             console.error('Token validation error:', error);
-            return { isValid: false, companyId: 0, errorMessage: 'Authentication failed' };
+            return {isValid: false, companyId: 0, errorMessage: 'Authentication failed'};
         }
     }
 
@@ -45,10 +46,20 @@ class CatalogService {
         try {
             // 1. Get Company Info
             const [companyInfo] = await sequelize.query(
-                `SELECT company_id, company_name, company_code, logo_url,
-                    email, phone, address, currency_code, currency_symbol, tax_percentage
-                FROM companies WHERE company_code = ? AND is_active = 1`,
-                { replacements: [companyCode], type: QueryTypes.SELECT }
+                    `SELECT company_id,
+                            company_name,
+                            company_code,
+                            logo_url,
+                            email,
+                            phone,
+                            address,
+                            currency_code,
+                            currency_symbol,
+                            tax_percentage
+                     FROM companies
+                     WHERE company_code = ?
+                       AND is_active = 1`,
+                {replacements: [companyCode], type: QueryTypes.SELECT}
             );
 
             if (!companyInfo) {
@@ -67,174 +78,294 @@ class CatalogService {
 
             // 3. Get Sizes
             const sizes = await sequelize.query(
-                `SELECT size_id, company_id, size_name, size_code, display_order
-                FROM sizes WHERE company_id = ? AND is_active = 1 ORDER BY display_order`,
-                { replacements: [companyId], type: QueryTypes.SELECT }
+                    `SELECT size_id, company_id, size_name, size_code, display_order
+                     FROM sizes
+                     WHERE company_id = ?
+                       AND is_active = 1
+                     ORDER BY display_order`,
+                {replacements: [companyId], type: QueryTypes.SELECT}
             );
 
 
             // 3a. Get Business Hours
             const businessHours = await sequelize.query(
                     `SELECT business_hour_id, day, service, time,delivery_time
-                     FROM business_hours WHERE company_id = ? ORDER BY business_hour_id`,
-                { replacements: [companyId], type: QueryTypes.SELECT }
+                     FROM business_hours
+                     WHERE company_id = ?
+                     ORDER BY business_hour_id`,
+                {replacements: [companyId], type: QueryTypes.SELECT}
             );
 
             // 3b. Get Special Comments
             const specialComments = await sequelize.query(
                     `SELECT comment_id, title, description
-                     FROM special_comments WHERE company_id = ?  ORDER BY comment_id`,
-                { replacements: [companyId], type: QueryTypes.SELECT }
+                     FROM special_comments
+                     WHERE company_id = ?
+                     ORDER BY comment_id`,
+                {replacements: [companyId], type: QueryTypes.SELECT}
+            );
+            let deliveryCharges = await sequelize.query(
+                    `SELECT delivery_charge_id,
+                            postcode,
+                            status,
+                            minimum_order,
+                            charge,
+                            driver_fee,
+                            free_delivery_above,
+                            distance_limit
+                     FROM delivery_charges
+                     WHERE company_id = ?
+                     ORDER BY delivery_charge_id`,
+                {replacements: [companyId], type: QueryTypes.SELECT}
             );
 
-            const deliveryCharges = await sequelize.query(
-                `SELECT delivery_charge_id, postcode, status, minimum_order,
-            CAST(charge AS DECIMAL(10,2)) AS charge,
-            CAST(driver_fee AS DECIMAL(10,2)) AS driver_fee,
-            CAST(free_delivery_above AS DECIMAL(10,2)) AS free_delivery_above,
-            distance_limit
-     FROM delivery_charges
-     WHERE company_id = ?
-     ORDER BY delivery_charge_id`,
-                { replacements: [companyId], type: QueryTypes.SELECT }
-            );
+            const toFloat = (val) => {
+                if (val === null || val === undefined || val === '') return null;
+                const num = parseFloat(String(val).replace(/[^0-9.-]/g, ''));
+                return isNaN(num) ? null : num;
+            };
+
+            const parsedCharges = deliveryCharges.map(row => ({
+                ...row,
+                charge: toFloat(row.charge),
+                driver_fee: toFloat(row.driver_fee),
+                free_delivery_above: toFloat(row.free_delivery_above),
+            }));
+
+            deliveryCharges = parsedCharges;
+
+
             // 4. Get Categories
             const categories = await sequelize.query(
-                `SELECT c.category_id, c.company_id, c.category_name, c.category_code, c.description,
-                    c.category_type, c.has_sizes, c.has_toppings, c.has_addons, c.has_flavours,
-                    c.has_choices, c.has_half_and_half, c.image_url, c.display_order
-                FROM categories c
-                WHERE c.company_id = ? AND c.is_active = 1
-                ORDER BY c.display_order`,
-                { replacements: [companyId], type: QueryTypes.SELECT }
+                    `SELECT c.category_id,
+                            c.company_id,
+                            c.category_name,
+                            c.category_code,
+                            c.description,
+                            c.category_type,
+                            c.has_sizes,
+                            c.has_toppings,
+                            c.has_addons,
+                            c.has_flavours,
+                            c.has_choices,
+                            c.has_half_and_half,
+                            c.image_url,
+                            c.display_order
+                     FROM categories c
+                     WHERE c.company_id = ?
+                       AND c.is_active = 1
+                     ORDER BY c.display_order`,
+                {replacements: [companyId], type: QueryTypes.SELECT}
             );
 
             // 5. Get Category Sizes
             const categorySizes = await sequelize.query(
-                `SELECT cs.category_size_id, cs.category_id, cs.size_id, s.size_name, s.size_code, cs.display_order
-                FROM category_sizes cs
-                JOIN sizes s ON cs.size_id = s.size_id
-                JOIN categories cat ON cs.category_id = cat.category_id
-                WHERE cat.company_id = ? AND cs.is_active = 1 AND s.is_active = 1
-                ORDER BY cs.category_id, cs.display_order`,
-                { replacements: [companyId], type: QueryTypes.SELECT }
+                    `SELECT cs.category_size_id, cs.category_id, cs.size_id, s.size_name, s.size_code, cs.display_order
+                     FROM category_sizes cs
+                            JOIN sizes s ON cs.size_id = s.size_id
+                            JOIN categories cat ON cs.category_id = cat.category_id
+                     WHERE cat.company_id = ?
+                       AND cs.is_active = 1
+                       AND s.is_active = 1
+                     ORDER BY cs.category_id, cs.display_order`,
+                {replacements: [companyId], type: QueryTypes.SELECT}
             );
 
             // 6. Get Category Toppings with Prices
             const categoryToppings = await sequelize.query(
-                `SELECT ct.category_topping_id, ct.category_id, ct.topping_id, t.topping_name, t.topping_code,
-                    ct.is_default, ct.display_order, ctp.size_id, sz.size_name, sz.size_code,
-                    IFNULL(ctp.price, t.default_price) AS price
-                FROM category_toppings ct
-                JOIN toppings t ON ct.topping_id = t.topping_id
-                JOIN categories cat ON ct.category_id = cat.category_id
-                LEFT JOIN category_topping_prices ctp ON ct.category_topping_id = ctp.category_topping_id AND ctp.is_active = 1
-                LEFT JOIN sizes sz ON ctp.size_id = sz.size_id
-                WHERE cat.company_id = ? AND ct.is_active = 1 AND t.is_active = 1
-                ORDER BY ct.category_id, ct.display_order, sz.display_order`,
-                { replacements: [companyId], type: QueryTypes.SELECT }
+                    `SELECT ct.category_topping_id,
+                            ct.category_id,
+                            ct.topping_id,
+                            t.topping_name,
+                            t.topping_code,
+                            ct.is_default,
+                            ct.display_order,
+                            ctp.size_id,
+                            sz.size_name,
+                            sz.size_code,
+                            IFNULL(ctp.price, t.default_price) AS price
+                     FROM category_toppings ct
+                            JOIN toppings t ON ct.topping_id = t.topping_id
+                            JOIN categories cat ON ct.category_id = cat.category_id
+                            LEFT JOIN category_topping_prices ctp
+                                      ON ct.category_topping_id = ctp.category_topping_id AND ctp.is_active = 1
+                            LEFT JOIN sizes sz ON ctp.size_id = sz.size_id
+                     WHERE cat.company_id = ?
+                       AND ct.is_active = 1
+                       AND t.is_active = 1
+                     ORDER BY ct.category_id, ct.display_order, sz.display_order`,
+                {replacements: [companyId], type: QueryTypes.SELECT}
             );
-
 
 
             // 7. Get Category Addon Groups with Addons and Prices
             const categoryAddonGroups = await sequelize.query(
-                `SELECT cag.category_addon_group_id, cag.category_id, cag.addon_group_id,
-                    ag.group_name, ag.group_code, IFNULL(cag.is_required, ag.is_required) AS is_required,
-                    ag.allow_multiple, ag.min_selections, ag.max_selections, cag.display_order,
-                    a.addon_id, a.addon_name, a.addon_code, a.is_default AS addon_is_default, a.display_order AS addon_display_order,
-                    cap.size_id, sz.size_name, sz.size_code, IFNULL(cap.price, a.default_price) AS price
-                FROM category_addon_groups cag
-                JOIN addon_groups ag ON cag.addon_group_id = ag.addon_group_id
-                JOIN categories cat ON cag.category_id = cat.category_id
-                JOIN addons a ON ag.addon_group_id = a.addon_group_id AND a.is_active = 1
-                JOIN category_addon_prices cap ON cag.category_addon_group_id = cap.category_addon_group_id 
-                    AND cap.addon_id = a.addon_id AND cap.is_active = 1
-                LEFT JOIN sizes sz ON cap.size_id = sz.size_id
-                WHERE cat.company_id = ? AND cag.is_active = 1 AND ag.is_active = 1
-                ORDER BY cag.category_id, cag.display_order, a.display_order, sz.display_order`,
-                { replacements: [companyId], type: QueryTypes.SELECT }
+                    `SELECT cag.category_addon_group_id,
+                            cag.category_id,
+                            cag.addon_group_id,
+                            ag.group_name,
+                            ag.group_code,
+                            IFNULL(cag.is_required, ag.is_required) AS is_required,
+                            ag.allow_multiple,
+                            ag.min_selections,
+                            ag.max_selections,
+                            cag.display_order,
+                            a.addon_id,
+                            a.addon_name,
+                            a.addon_code,
+                            a.is_default                            AS addon_is_default,
+                            a.display_order                         AS addon_display_order,
+                            cap.size_id,
+                            sz.size_name,
+                            sz.size_code,
+                            IFNULL(cap.price, a.default_price)      AS price
+                     FROM category_addon_groups cag
+                            JOIN addon_groups ag ON cag.addon_group_id = ag.addon_group_id
+                            JOIN categories cat ON cag.category_id = cat.category_id
+                            JOIN addons a ON ag.addon_group_id = a.addon_group_id AND a.is_active = 1
+                            JOIN category_addon_prices cap ON cag.category_addon_group_id = cap.category_addon_group_id
+                         AND cap.addon_id = a.addon_id AND cap.is_active = 1
+                            LEFT JOIN sizes sz ON cap.size_id = sz.size_id
+                     WHERE cat.company_id = ?
+                       AND cag.is_active = 1
+                       AND ag.is_active = 1
+                     ORDER BY cag.category_id, cag.display_order, a.display_order, sz.display_order`,
+                {replacements: [companyId], type: QueryTypes.SELECT}
             );
 
             // 8. Get Category Choice Groups with Choices and Prices
             const categoryChoiceGroups = await sequelize.query(
-                `SELECT ccg.category_choice_group_id, ccg.category_id, ccg.choice_group_id,
-                    cg.group_name, cg.group_code, IFNULL(ccg.is_required, cg.is_required) AS is_required,
-                    cg.allow_multiple, cg.min_selections, cg.max_selections, ccg.display_order,
-                    c.choice_id, c.choice_name, c.choice_code, c.is_default AS choice_is_default, c.display_order AS choice_display_order,
-                    ccp.size_id, sz.size_name, sz.size_code, IFNULL(ccp.price, c.default_price) AS price
-                FROM category_choice_groups ccg
-                JOIN choice_groups cg ON ccg.choice_group_id = cg.choice_group_id
-                JOIN categories cat ON ccg.category_id = cat.category_id
-                JOIN choices c ON cg.choice_group_id = c.choice_group_id AND c.is_active = 1
-                 JOIN category_choice_prices ccp ON ccg.category_choice_group_id = ccp.category_choice_group_id 
-                    AND ccp.choice_id = c.choice_id AND ccp.is_active = 1
-                LEFT JOIN sizes sz ON ccp.size_id = sz.size_id
-                WHERE cat.company_id = ? AND ccg.is_active = 1 AND cg.is_active = 1
-                ORDER BY ccg.category_id, ccg.display_order, c.display_order, sz.display_order`,
-                { replacements: [companyId], type: QueryTypes.SELECT }
+                    `SELECT ccg.category_choice_group_id,
+                            ccg.category_id,
+                            ccg.choice_group_id,
+                            cg.group_name,
+                            cg.group_code,
+                            IFNULL(ccg.is_required, cg.is_required) AS is_required,
+                            cg.allow_multiple,
+                            cg.min_selections,
+                            cg.max_selections,
+                            ccg.display_order,
+                            c.choice_id,
+                            c.choice_name,
+                            c.choice_code,
+                            c.is_default                            AS choice_is_default,
+                            c.display_order                         AS choice_display_order,
+                            ccp.size_id,
+                            sz.size_name,
+                            sz.size_code,
+                            IFNULL(ccp.price, c.default_price)      AS price
+                     FROM category_choice_groups ccg
+                            JOIN choice_groups cg ON ccg.choice_group_id = cg.choice_group_id
+                            JOIN categories cat ON ccg.category_id = cat.category_id
+                            JOIN choices c ON cg.choice_group_id = c.choice_group_id AND c.is_active = 1
+                            JOIN category_choice_prices ccp
+                                 ON ccg.category_choice_group_id = ccp.category_choice_group_id
+                                   AND ccp.choice_id = c.choice_id AND ccp.is_active = 1
+                            LEFT JOIN sizes sz ON ccp.size_id = sz.size_id
+                     WHERE cat.company_id = ?
+                       AND ccg.is_active = 1
+                       AND cg.is_active = 1
+                     ORDER BY ccg.category_id, ccg.display_order, c.display_order, sz.display_order`,
+                {replacements: [companyId], type: QueryTypes.SELECT}
             );
 
             // 9. Get Category Flavours with Prices
             const categoryFlavours = await sequelize.query(
-                `SELECT cf.category_flavour_id, cf.category_id, cf.flavour_id, f.flavour_name, f.flavour_code,
-                    cf.is_default, cf.display_order, cfp.size_id, sz.size_name, sz.size_code,
-                    IFNULL(cfp.price, f.default_price) AS price
-                FROM category_flavours cf
-                JOIN flavours f ON cf.flavour_id = f.flavour_id
-                JOIN categories cat ON cf.category_id = cat.category_id
-                LEFT JOIN category_flavour_prices cfp ON cf.category_flavour_id = cfp.category_flavour_id AND cfp.is_active = 1
-                LEFT JOIN sizes sz ON cfp.size_id = sz.size_id
-                WHERE cat.company_id = ? AND cf.is_active = 1 AND f.is_active = 1
-                ORDER BY cf.category_id, cf.display_order, sz.display_order`,
-                { replacements: [companyId], type: QueryTypes.SELECT }
+                    `SELECT cf.category_flavour_id,
+                            cf.category_id,
+                            cf.flavour_id,
+                            f.flavour_name,
+                            f.flavour_code,
+                            cf.is_default,
+                            cf.display_order,
+                            cfp.size_id,
+                            sz.size_name,
+                            sz.size_code,
+                            IFNULL(cfp.price, f.default_price) AS price
+                     FROM category_flavours cf
+                            JOIN flavours f ON cf.flavour_id = f.flavour_id
+                            JOIN categories cat ON cf.category_id = cat.category_id
+                            LEFT JOIN category_flavour_prices cfp
+                                      ON cf.category_flavour_id = cfp.category_flavour_id AND cfp.is_active = 1
+                            LEFT JOIN sizes sz ON cfp.size_id = sz.size_id
+                     WHERE cat.company_id = ?
+                       AND cf.is_active = 1
+                       AND f.is_active = 1
+                     ORDER BY cf.category_id, cf.display_order, sz.display_order`,
+                {replacements: [companyId], type: QueryTypes.SELECT}
             );
 
             // 10. Get Products
             const products = await sequelize.query(
-                `SELECT p.product_id, p.category_id, p.product_name, p.product_code, p.description,
-                    p.base_price, p.has_custom_toppings, p.has_custom_addons, p.has_custom_flavours,
-                    p.has_custom_choices, p.included_toppings_count, p.is_half_and_half, p.image_url, p.display_order
-                FROM products p
-                JOIN categories cat ON p.category_id = cat.category_id
-                WHERE cat.company_id = ? AND p.is_active = 1
-                ORDER BY p.category_id, p.display_order`,
-                { replacements: [companyId], type: QueryTypes.SELECT }
+                    `SELECT p.product_id,
+                            p.category_id,
+                            p.product_name,
+                            p.product_code,
+                            p.description,
+                            p.base_price,
+                            p.has_custom_toppings,
+                            p.has_custom_addons,
+                            p.has_custom_flavours,
+                            p.has_custom_choices,
+                            p.included_toppings_count,
+                            p.is_half_and_half,
+                            p.image_url,
+                            p.display_order
+                     FROM products p
+                            JOIN categories cat ON p.category_id = cat.category_id
+                     WHERE cat.company_id = ?
+                       AND p.is_active = 1
+                     ORDER BY p.category_id, p.display_order`,
+                {replacements: [companyId], type: QueryTypes.SELECT}
             );
 
             // 11. Get Product Prices
             const productPrices = await sequelize.query(
-                `SELECT pp.product_price_id, pp.product_id, pp.size_id, s.size_name, s.size_code, pp.price
-                FROM product_prices pp
-                JOIN sizes s ON pp.size_id = s.size_id
-                JOIN products p ON pp.product_id = p.product_id
-                JOIN categories cat ON p.category_id = cat.category_id
-                WHERE cat.company_id = ? AND pp.is_active = 1 AND s.is_active = 1
-                ORDER BY pp.product_id, s.display_order`,
-                { replacements: [companyId], type: QueryTypes.SELECT }
+                    `SELECT pp.product_price_id, pp.product_id, pp.size_id, s.size_name, s.size_code, pp.price
+                     FROM product_prices pp
+                            JOIN sizes s ON pp.size_id = s.size_id
+                            JOIN products p ON pp.product_id = p.product_id
+                            JOIN categories cat ON p.category_id = cat.category_id
+                     WHERE cat.company_id = ?
+                       AND pp.is_active = 1
+                       AND s.is_active = 1
+                     ORDER BY pp.product_id, s.display_order`,
+                {replacements: [companyId], type: QueryTypes.SELECT}
             );
 
             // 12. Get Product Custom Flavours with Prices
             const productFlavours = await sequelize.query(
-                `SELECT pf.product_flavour_id, pf.product_id, pf.flavour_id, f.flavour_name, f.flavour_code,
-        pf.is_default, pf.display_order, pfp.size_id, sz.size_name, sz.size_code,
-        IFNULL(pfp.price, f.default_price) AS price
-    FROM product_flavours pf
-    JOIN flavours f ON pf.flavour_id = f.flavour_id
-    JOIN products p ON pf.product_id = p.product_id
-    JOIN categories cat ON p.category_id = cat.category_id
-    LEFT JOIN product_flavour_prices pfp ON pf.product_flavour_id = pfp.product_flavour_id AND pfp.is_active = 1
-    LEFT JOIN sizes sz ON pfp.size_id = sz.size_id
-    WHERE cat.company_id = ? AND pf.is_active = 1 AND f.is_active = 1 AND p.has_custom_flavours = 1
-    ORDER BY pf.product_id, pf.display_order, sz.display_order`,
-                { replacements: [companyId], type: QueryTypes.SELECT }
+                    `SELECT pf.product_flavour_id,
+                            pf.product_id,
+                            pf.flavour_id,
+                            f.flavour_name,
+                            f.flavour_code,
+                            pf.is_default,
+                            pf.display_order,
+                            pfp.size_id,
+                            sz.size_name,
+                            sz.size_code,
+                            IFNULL(pfp.price, f.default_price) AS price
+                     FROM product_flavours pf
+                            JOIN flavours f ON pf.flavour_id = f.flavour_id
+                            JOIN products p ON pf.product_id = p.product_id
+                            JOIN categories cat ON p.category_id = cat.category_id
+                            LEFT JOIN product_flavour_prices pfp
+                                      ON pf.product_flavour_id = pfp.product_flavour_id AND pfp.is_active = 1
+                            LEFT JOIN sizes sz ON pfp.size_id = sz.size_id
+                     WHERE cat.company_id = ?
+                       AND pf.is_active = 1
+                       AND f.is_active = 1
+                       AND p.has_custom_flavours = 1
+                     ORDER BY pf.product_id, pf.display_order, sz.display_order`,
+                {replacements: [companyId], type: QueryTypes.SELECT}
             );
 
             // Build the hierarchical structure
             return this.buildCatalogStructure(
                 companyInfo, sizes, categories, categorySizes,
                 categoryToppings, categoryAddonGroups, categoryChoiceGroups,
-                categoryFlavours, products, productPrices,productFlavours,businessHours,specialComments,deliveryCharges
+                categoryFlavours, products, productPrices, productFlavours, businessHours, specialComments, deliveryCharges
             );
 
         } catch (error) {
@@ -248,7 +379,7 @@ class CatalogService {
      */
     buildCatalogStructure(companyInfo, sizes, categories, categorySizes,
                           categoryToppings, categoryAddonGroups, categoryChoiceGroups,
-                          categoryFlavours, products, productPrices,productFlavours,businessHours,specialComments ,deliveryCharges ) {
+                          categoryFlavours, products, productPrices, productFlavours, businessHours, specialComments, deliveryCharges) {
 
         // Build company info
         const catalog = {
