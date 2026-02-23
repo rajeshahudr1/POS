@@ -87,19 +87,17 @@ class CatalogService {
                 { replacements: [companyId], type: QueryTypes.SELECT }
             );
 
-            // 3c. Get Delivery Charges
             const deliveryCharges = await sequelize.query(
-                    `SELECT delivery_charge_id, postcode, status, minimum_order,
-                            CAST(charge AS DOUBLE) AS charge,
-                            CAST(driver_fee AS DOUBLE) AS driver_fee,
-                            CAST(free_delivery_above AS DOUBLE) AS free_delivery_above,
-                            distance_limit
-                     FROM delivery_charges
-                     WHERE company_id = ?
-                     ORDER BY delivery_charge_id`,
+                `SELECT delivery_charge_id, postcode, status, minimum_order,
+            CAST(charge AS DECIMAL(10,2)) AS charge,
+            CAST(driver_fee AS DECIMAL(10,2)) AS driver_fee,
+            CAST(free_delivery_above AS DECIMAL(10,2)) AS free_delivery_above,
+            distance_limit
+     FROM delivery_charges
+     WHERE company_id = ?
+     ORDER BY delivery_charge_id`,
                 { replacements: [companyId], type: QueryTypes.SELECT }
             );
-
             // 4. Get Categories
             const categories = await sequelize.query(
                 `SELECT c.category_id, c.company_id, c.category_name, c.category_code, c.description,
