@@ -89,8 +89,14 @@ class CatalogService {
 
             // 3c. Get Delivery Charges
             const deliveryCharges = await sequelize.query(
-                    `SELECT delivery_charge_id, postcode, status, minimum_order, charge, driver_fee, free_delivery_above, distance_limit
-                     FROM delivery_charges WHERE company_id = ? ORDER BY delivery_charge_id`,
+                    `SELECT delivery_charge_id, postcode, status, minimum_order,
+                            CAST(charge AS DOUBLE) AS charge,
+                            CAST(driver_fee AS DOUBLE) AS driver_fee,
+                            CAST(free_delivery_above AS DOUBLE) AS free_delivery_above,
+                            distance_limit
+                     FROM delivery_charges
+                     WHERE company_id = ?
+                     ORDER BY delivery_charge_id`,
                 { replacements: [companyId], type: QueryTypes.SELECT }
             );
 
@@ -130,6 +136,8 @@ class CatalogService {
                 ORDER BY ct.category_id, ct.display_order, sz.display_order`,
                 { replacements: [companyId], type: QueryTypes.SELECT }
             );
+
+
 
             // 7. Get Category Addon Groups with Addons and Prices
             const categoryAddonGroups = await sequelize.query(

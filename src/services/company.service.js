@@ -208,6 +208,10 @@ exports.list = async ({ page = 1, limit = 10, search = '', is_active = null }) =
 exports.recordDestroy = async (companyId) => {
     try {
         const tables = [
+            "product_flavour_prices",   // ← ADD
+            "product_flavours",         // ← ADD
+            "category_choice_prices",   // ← ADD
+            "category_addon_prices",    // ← ADD
             "choices",
             "category_choice_groups",
             "choice_groups",
